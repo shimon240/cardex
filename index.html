@@ -47,10 +47,7 @@
   <div id="app" class="app" hidden>
     <header class="topbar">
       <div class="topbar-title" id="topbar-title">Добавить слово</div>
-      <button id="lang-btn" class="chip" type="button" aria-label="Изучаемый язык">
-        <span id="lang-label">Авто</span>
-        <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
+      <nav id="sections" class="sections" aria-label="Языки"></nav>
     </header>
 
     <main class="views">
@@ -169,8 +166,8 @@
   <!-- Language sheet -->
   <dialog id="lang-sheet" class="sheet">
     <form method="dialog">
-      <h3>Какой язык учишь?</h3>
-      <p class="muted small">Подсказка для Грока. Если впишешь слово по-русски, оно переведётся на этот язык. В тренировке показываются слова только этого языка.</p>
+      <h3>Новый раздел</h3>
+      <p class="muted small">Разделы создаются сами, когда добавляешь слово на новом языке. Заранее раздел нужен, если хочешь вписывать русские слова и сразу получать перевод на этот язык.</p>
       <div id="lang-options" class="lang-options"></div>
       <button class="btn btn-ghost" value="close">Закрыть</button>
     </form>

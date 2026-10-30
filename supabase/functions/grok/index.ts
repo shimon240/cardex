@@ -4,7 +4,8 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const MODEL = "grok-4.7";
+// Non-reasoning variant: same answers here, 2–3 s instead of 10–25 s.
+const MODEL = "grok-4.20-0309-non-reasoning";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -61,7 +62,6 @@ async function grok(messages: unknown[]): Promise<any> {
     },
     body: JSON.stringify({
       model: MODEL,
-      reasoning_effort: "low",
       response_format: { type: "json_object" },
       messages,
     }),
