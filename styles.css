@@ -145,21 +145,26 @@ input:focus { border-color: var(--accent); }
 .tab.active { color: var(--accent); }
 
 /* Add view */
-.capture { display: flex; flex-direction: column; gap: 10px; }
-.capture-main {
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
-  min-height: 168px; padding: 20px;
-  background: var(--accent); color: var(--accent-ink);
-  border: 0; border-radius: 24px;
-  font-size: 19px; font-weight: 800;
-  box-shadow: var(--shadow);
-  transition: transform .12s ease;
+.text-form { display: flex; flex-direction: column; gap: 10px; }
+.text-form textarea {
+  width: 100%; min-height: 120px; max-height: 40dvh; padding: 14px 16px;
+  background: var(--surface); border: 1.5px solid var(--line); border-radius: 18px;
+  font: 500 19px/1.4 var(--sans); color: var(--ink);
+  outline: none; resize: none; transition: border-color .15s ease;
+  -webkit-appearance: none; appearance: none;
 }
-.capture-main:active { transform: scale(.98); }
-.divider { display: flex; align-items: center; gap: 12px; margin: 22px 0 14px; color: var(--ink-3); font-size: 14px; font-weight: 600; }
-.divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
-.text-form { display: flex; gap: 8px; }
-.text-form .btn { width: 52px; min-height: 52px; padding: 0; flex: none; }
+.text-form textarea:focus { border-color: var(--accent); }
+.text-form textarea::placeholder { color: var(--ink-3); }
+.scan-tip {
+  display: flex; gap: 14px; align-items: flex-start;
+  margin-top: 14px; padding: 14px 16px;
+  border: 1.5px dashed var(--line); border-radius: var(--radius);
+}
+.scan-icon {
+  flex: none; width: 44px; height: 44px; display: grid; place-items: center;
+  border-radius: 12px; background: var(--accent-soft); color: var(--accent);
+}
+.scan-title { font-weight: 700; margin-bottom: 2px; }
 
 .status {
   display: flex; align-items: center; gap: 12px;
@@ -168,7 +173,6 @@ input:focus { border-color: var(--accent); }
   color: var(--ink-2); font-weight: 600;
 }
 .status.error { color: var(--bad); background: var(--bad-soft); border-color: transparent; }
-.status img { width: 52px; height: 52px; object-fit: cover; border-radius: 10px; flex: none; }
 .spinner {
   width: 20px; height: 20px; flex: none; border-radius: 50%;
   border: 2.5px solid var(--line); border-top-color: var(--accent);

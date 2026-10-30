@@ -74,24 +74,6 @@ async function grok(body) {
   return data;
 }
 
-function resizeImage(file, max = 1600) {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      const scale = Math.min(1, max / Math.max(img.width, img.height));
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.round(img.width * scale);
-      canvas.height = Math.round(img.height * scale);
-      canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
-      URL.revokeObjectURL(url);
-      resolve(canvas.toDataURL("image/jpeg", 0.85));
-    };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Не удалось открыть фото")); };
-    img.src = url;
-  });
-}
-
 /* ---------- word card rendering ---------- */
 
 function wordCardHTML(c) {
@@ -183,7 +165,14 @@ sb.auth.onAuthStateChange((_event, session) => {
   if (user) {
     $("#account-email").textContent = user.email;
     // Defer: awaiting Supabase calls inside this callback can deadlock the auth lock.
-    setTimeout(loadCards, 0);
+    setTimeout(() => {
+      loadCards();
+      if (pendingText) {
+        showView("add");
+        analyze(pendingText);
+        pendingText = null;
+      }
+    }, 0);
   } else {
     state.cards = [];
   }
@@ -267,13 +256,13 @@ function setAddStatus(html, kind = "") {
   s.innerHTML = html || "";
 }
 
-async function analyze(payload, preview) {
+async function analyze(text) {
   $("#add-results").innerHTML = "";
-  const img = preview ? `<img src="${preview}" alt="">` : "";
-  setAddStatus(`${img}<div class="spinner"></div><span>${preview ? "Грок читает фото…" : "Грок думает…"}</span>`);
+  setAddStatus(`<div class="spinner"></div><span>Грок думает…</span>`);
+  $("#text-submit").disabled = true;
   try {
     const lang = LANGS.find((l) => l.code === state.studyLang);
-    const res = await grok({ action: "analyze", studyLanguage: lang?.ru ?? null, ...payload });
+    const res = await grok({ action: "analyze", studyLanguage: lang?.ru ?? null, text });
     if (!res.items?.length) {
       setAddStatus(esc(res.error || "Не нашёл иностранных слов. Попробуй ещё раз."), "error");
       return;
@@ -282,6 +271,8 @@ async function analyze(payload, preview) {
     renderResults(res.items);
   } catch (err) {
     setAddStatus("Ошибка: " + esc(err.message), "error");
+  } finally {
+    $("#text-submit").disabled = false;
   }
 }
 
@@ -312,30 +303,31 @@ function renderResults(items) {
   });
 }
 
-async function onPhoto(e) {
-  const file = e.target.files?.[0];
-  e.target.value = "";
-  if (!file) return;
-  try {
-    const dataUrl = await resizeImage(file);
-    analyze({ image: dataUrl }, dataUrl);
-  } catch (err) {
-    setAddStatus(esc(err.message), "error");
-  }
-}
-
-$("#camera-btn").addEventListener("click", () => $("#camera-input").click());
-$("#gallery-btn").addEventListener("click", () => $("#gallery-input").click());
-$("#camera-input").addEventListener("change", onPhoto);
-$("#gallery-input").addEventListener("change", onPhoto);
-
-$("#text-form").addEventListener("submit", (e) => {
-  e.preventDefault();
+function submitText() {
   const text = $("#text-input").value.trim();
   if (!text) return;
   $("#text-input").blur();
-  analyze({ text });
+  analyze(text);
+}
+
+$("#text-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  submitText();
 });
+$("#text-input").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+    e.preventDefault();
+    submitText();
+  }
+});
+
+// Text handed over by a link, e.g. an iOS Shortcut: …/cardex/?text=Fernweh
+const params = new URLSearchParams(location.search);
+let pendingText = params.get("text")?.trim() || null;
+if (pendingText) {
+  $("#text-input").value = pendingText;
+  history.replaceState(null, "", location.pathname);
+}
 
 /* ---------- learn mode ---------- */
 
