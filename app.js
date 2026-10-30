@@ -1,6 +1,6 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/+esm";
 import { SUPABASE_URL, SUPABASE_KEY } from "./config.js";
-import { openMarker } from "./marker.js";
+import { openCrop } from "./crop.js";
 
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -170,7 +170,7 @@ sb.auth.onAuthStateChange((_event, session) => {
       loadCards();
       if (pendingText) {
         showView("add");
-        analyze(pendingText);
+        analyze({ text: pendingText });
         pendingText = null;
       }
     }, 0);
@@ -257,13 +257,15 @@ function setAddStatus(html, kind = "") {
   s.innerHTML = html || "";
 }
 
-async function analyze(text) {
+// payload is { text } or { image } (a JPEG data URL).
+async function analyze(payload) {
   $("#add-results").innerHTML = "";
-  setAddStatus(`<div class="spinner"></div><span>Грок думает…</span>`);
+  const thumb = payload.image ? `<img src="${payload.image}" alt="">` : "";
+  setAddStatus(`${thumb}<div class="spinner"></div><span>${payload.image ? "Грок читает фото…" : "Грок думает…"}</span>`);
   $("#text-submit").disabled = true;
   try {
     const lang = LANGS.find((l) => l.code === state.studyLang);
-    const res = await grok({ action: "analyze", studyLanguage: lang?.ru ?? null, text });
+    const res = await grok({ action: "analyze", studyLanguage: lang?.ru ?? null, ...payload });
     if (!res.items?.length) {
       setAddStatus(esc(res.error || "Не нашёл иностранных слов. Попробуй ещё раз."), "error");
       return;
@@ -309,10 +311,8 @@ async function onPhoto(e) {
   e.target.value = "";
   if (!file) return;
   try {
-    const text = await openMarker(file, state.studyLang);
-    if (!text) return;
-    $("#text-input").value = text;
-    analyze(text);
+    const image = await openCrop(file);
+    if (image) analyze({ image });
   } catch (err) {
     setAddStatus(esc(err.message), "error");
   }
@@ -327,7 +327,7 @@ function submitText() {
   const text = $("#text-input").value.trim();
   if (!text) return;
   $("#text-input").blur();
-  analyze(text);
+  analyze({ text });
 }
 
 $("#text-form").addEventListener("submit", (e) => {

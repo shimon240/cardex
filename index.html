@@ -60,7 +60,7 @@
           <button id="camera-btn" class="capture-main" type="button">
             <svg width="34" height="34" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.3l1.2-1.8A1.5 1.5 0 0 1 10.2 3.5h3.6a1.5 1.5 0 0 1 1.2.7L16.2 6h1.3A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="12" cy="12.3" r="3.4" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
             <span>Сфотографировать</span>
-            <small>потом выделишь слово маркером</small>
+            <small>потом обрежешь до нужного слова</small>
           </button>
           <button id="gallery-btn" class="btn btn-ghost" type="button">Выбрать фото из галереи</button>
           <input id="camera-input" type="file" accept="image/*" capture="environment" hidden>
@@ -176,22 +176,20 @@
     </form>
   </dialog>
 
-  <!-- Photo marker editor -->
-  <div id="marker" class="marker" hidden>
-    <div class="marker-top">
-      <button id="marker-cancel" class="marker-btn" type="button">Отмена</button>
-      <div id="marker-hint" class="marker-hint">Проведи пальцем по слову</div>
-      <button id="marker-undo" class="marker-btn" type="button" disabled>Отменить</button>
+  <!-- Photo crop editor -->
+  <div id="crop" class="crop" hidden>
+    <div class="crop-top">
+      <button id="crop-cancel" class="crop-btn" type="button">Отмена</button>
+      <div class="crop-hint">Обрежь до нужного слова</div>
+      <button id="crop-reset" class="crop-btn" type="button" disabled>Сбросить</button>
     </div>
-    <div id="marker-area" class="marker-area">
-      <div id="marker-stage" class="marker-stage">
-        <canvas id="marker-photo"></canvas>
-        <canvas id="marker-ink"></canvas>
-      </div>
+    <div id="crop-area" class="crop-area">
+      <div id="crop-stage" class="crop-stage"><canvas id="crop-photo"></canvas></div>
+      <div id="crop-box" class="crop-box"><i class="tl"></i><i class="tr"></i><i class="bl"></i><i class="br"></i></div>
     </div>
-    <div class="marker-bottom">
-      <div id="marker-status" class="marker-status">Двумя пальцами — увеличить и подвинуть</div>
-      <button id="marker-go" class="btn btn-primary btn-lg" type="button" disabled>Распознать</button>
+    <div class="crop-bottom">
+      <div class="crop-status">Тяни за углы · проведи вне рамки, чтобы выделить заново · двумя пальцами — увеличить</div>
+      <button id="crop-go" class="btn btn-primary btn-lg" type="button">Распознать</button>
     </div>
   </div>
 
