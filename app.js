@@ -1,5 +1,6 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/+esm";
 import { SUPABASE_URL, SUPABASE_KEY } from "./config.js";
+import { openMarker } from "./marker.js";
 
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -302,6 +303,25 @@ function renderResults(items) {
     wrap.appendChild(el);
   });
 }
+
+async function onPhoto(e) {
+  const file = e.target.files?.[0];
+  e.target.value = "";
+  if (!file) return;
+  try {
+    const text = await openMarker(file, state.studyLang);
+    if (!text) return;
+    $("#text-input").value = text;
+    analyze(text);
+  } catch (err) {
+    setAddStatus(esc(err.message), "error");
+  }
+}
+
+$("#camera-btn").addEventListener("click", () => $("#camera-input").click());
+$("#gallery-btn").addEventListener("click", () => $("#gallery-input").click());
+$("#camera-input").addEventListener("change", onPhoto);
+$("#gallery-input").addEventListener("change", onPhoto);
 
 function submitText() {
   const text = $("#text-input").value.trim();

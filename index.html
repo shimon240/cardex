@@ -56,20 +56,23 @@
     <main class="views">
       <!-- Add -->
       <section id="view-add" class="view">
+        <div class="capture">
+          <button id="camera-btn" class="capture-main" type="button">
+            <svg width="34" height="34" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.3l1.2-1.8A1.5 1.5 0 0 1 10.2 3.5h3.6a1.5 1.5 0 0 1 1.2.7L16.2 6h1.3A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="12" cy="12.3" r="3.4" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+            <span>Сфотографировать</span>
+            <small>потом выделишь слово маркером</small>
+          </button>
+          <button id="gallery-btn" class="btn btn-ghost" type="button">Выбрать фото из галереи</button>
+          <input id="camera-input" type="file" accept="image/*" capture="environment" hidden>
+          <input id="gallery-input" type="file" accept="image/*" hidden>
+        </div>
+
+        <div class="divider"><span>или впиши слово</span></div>
+
         <form id="text-form" class="text-form">
-          <textarea id="text-input" rows="3" placeholder="Слово, фраза или текст. Например, Fernweh или «тоска»" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go"></textarea>
+          <textarea id="text-input" rows="2" placeholder="Например, Fernweh или «тоска»" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go"></textarea>
           <button id="text-submit" class="btn btn-primary btn-lg" type="submit">Разобрать</button>
         </form>
-
-        <div class="scan-tip">
-          <div class="scan-icon" aria-hidden="true">
-            <svg width="26" height="26" viewBox="0 0 24 24"><path d="M4 8V6.5A2.5 2.5 0 0 1 6.5 4H8M16 4h1.5A2.5 2.5 0 0 1 20 6.5V8M20 16v1.5a2.5 2.5 0 0 1-2.5 2.5H16M8 20H6.5A2.5 2.5 0 0 1 4 17.5V16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M8 9.5h8M8 12h8M8 14.5h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-          </div>
-          <div>
-            <div class="scan-title">Слово с камеры</div>
-            <div class="muted small">Тапни по пустому полю ещё раз и выбери <b>«Сканировать текст»</b>. Наведи камеру, выдели нужное слово и нажми «Вставить». Распознаёт сам iPhone, на устройстве.</div>
-          </div>
-        </div>
 
         <div id="add-status" class="status" hidden></div>
         <div id="add-results" class="results"></div>
@@ -172,6 +175,25 @@
       <button class="btn btn-ghost" value="close">Закрыть</button>
     </form>
   </dialog>
+
+  <!-- Photo marker editor -->
+  <div id="marker" class="marker" hidden>
+    <div class="marker-top">
+      <button id="marker-cancel" class="marker-btn" type="button">Отмена</button>
+      <div id="marker-hint" class="marker-hint">Проведи пальцем по слову</div>
+      <button id="marker-undo" class="marker-btn" type="button" disabled>Отменить</button>
+    </div>
+    <div id="marker-area" class="marker-area">
+      <div id="marker-stage" class="marker-stage">
+        <canvas id="marker-photo"></canvas>
+        <canvas id="marker-ink"></canvas>
+      </div>
+    </div>
+    <div class="marker-bottom">
+      <div id="marker-status" class="marker-status">Двумя пальцами — увеличить и подвинуть</div>
+      <button id="marker-go" class="btn btn-primary btn-lg" type="button" disabled>Распознать</button>
+    </div>
+  </div>
 
   <div id="toast" class="toast" role="status" hidden></div>
 
