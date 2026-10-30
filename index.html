@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Cardex</title>
+  <meta name="description" content="Карточки иностранных слов: сфотографируй, добавь, учи.">
+  <meta name="theme-color" content="#f4efe6" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#16140f" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Cardex">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Lora:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Auth -->
+  <section id="auth" class="screen auth" hidden>
+    <div class="auth-inner">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">C</div>
+        <h1>Cardex</h1>
+        <p class="muted">Сфотографируй слово — Грок объяснит,<br>а карточки помогут запомнить.</p>
+      </div>
+      <form id="auth-form" class="stack" autocomplete="on">
+        <label class="field">
+          <span>Email</span>
+          <input id="auth-email" type="email" inputmode="email" autocomplete="email" required>
+        </label>
+        <label class="field">
+          <span>Пароль</span>
+          <input id="auth-password" type="password" autocomplete="current-password" minlength="6" required>
+        </label>
+        <button id="auth-submit" class="btn btn-primary btn-lg" type="submit">Войти</button>
+        <p id="auth-msg" class="form-msg" role="status"></p>
+        <button id="auth-toggle" class="btn-link" type="button">Нет аккаунта? Создать</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- App -->
+  <div id="app" class="app" hidden>
+    <header class="topbar">
+      <div class="topbar-title" id="topbar-title">Добавить слово</div>
+      <button id="lang-btn" class="chip" type="button" aria-label="Изучаемый язык">
+        <span id="lang-label">Авто</span>
+        <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </header>
+
+    <main class="views">
+      <!-- Add -->
+      <section id="view-add" class="view">
+        <div class="capture">
+          <button id="camera-btn" class="capture-main" type="button">
+            <svg width="34" height="34" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.3l1.2-1.8A1.5 1.5 0 0 1 10.2 3.5h3.6a1.5 1.5 0 0 1 1.2.7L16.2 6h1.3A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="12" cy="12.3" r="3.4" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+            <span>Сфотографировать</span>
+          </button>
+          <button id="gallery-btn" class="btn btn-ghost" type="button">Выбрать фото из галереи</button>
+          <input id="camera-input" type="file" accept="image/*" capture="environment" hidden>
+          <input id="gallery-input" type="file" accept="image/*" hidden>
+        </div>
+
+        <div class="divider"><span>или впиши слово</span></div>
+
+        <form id="text-form" class="text-form">
+          <input id="text-input" type="text" placeholder="например, Fernweh или «тоска»" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search">
+          <button class="btn btn-primary" type="submit" aria-label="Разобрать">
+            <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </form>
+
+        <div id="add-status" class="status" hidden></div>
+        <div id="add-results" class="results"></div>
+      </section>
+
+      <!-- Learn -->
+      <section id="view-learn" class="view" hidden>
+        <div id="learn-start" class="learn-start">
+          <div class="stats">
+            <div class="stat"><div class="stat-num" id="stat-due">–</div><div class="stat-label">к повторению</div></div>
+            <div class="stat"><div class="stat-num" id="stat-total">–</div><div class="stat-label">всего слов</div></div>
+            <div class="stat"><div class="stat-num" id="stat-learned">–</div><div class="stat-label">выучено</div></div>
+          </div>
+
+          <div class="group">
+            <div class="group-label">Направление</div>
+            <div class="segmented" id="direction">
+              <button type="button" data-dir="from_ru">Рус → ин.</button>
+              <button type="button" data-dir="to_ru">Ин. → рус</button>
+              <button type="button" data-dir="mix">Вперемешку</button>
+            </div>
+          </div>
+
+          <button id="learn-go" class="btn btn-primary btn-lg" type="button">Начать</button>
+          <p id="learn-note" class="muted center small"></p>
+        </div>
+
+        <div id="learn-session" class="learn-session" hidden>
+          <div class="progress"><div id="progress-bar" class="progress-bar"></div></div>
+          <div class="session-meta"><span id="session-count"></span><button id="session-quit" class="btn-link" type="button">Закончить</button></div>
+
+          <article id="quiz-card" class="quiz-card">
+            <div class="quiz-tag" id="quiz-tag"></div>
+            <div class="quiz-prompt" id="quiz-prompt"></div>
+            <div class="quiz-sub" id="quiz-sub"></div>
+            <button id="quiz-hint-btn" class="btn-link small" type="button">Подсказка</button>
+            <div id="quiz-hint" class="quiz-hint" hidden></div>
+          </article>
+
+          <form id="quiz-form" class="quiz-form">
+            <input id="quiz-input" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" placeholder="Твой перевод">
+            <div class="row">
+              <button id="quiz-skip" class="btn btn-ghost" type="button">Не помню</button>
+              <button id="quiz-check" class="btn btn-primary" type="submit">Проверить</button>
+            </div>
+          </form>
+
+          <div id="quiz-result" class="quiz-result" hidden>
+            <div id="verdict" class="verdict"></div>
+            <div id="answer-card"></div>
+            <div class="row">
+              <button id="quiz-override" class="btn btn-ghost" type="button" hidden>Я был прав</button>
+              <button id="quiz-next" class="btn btn-primary" type="button">Дальше</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="learn-done" class="learn-done" hidden>
+          <div class="done-emoji" aria-hidden="true">✓</div>
+          <h2>Готово!</h2>
+          <p id="done-summary" class="muted"></p>
+          <button id="learn-again" class="btn btn-primary btn-lg" type="button">Ещё раунд</button>
+        </div>
+      </section>
+
+      <!-- Dictionary -->
+      <section id="view-dict" class="view" hidden>
+        <input id="dict-search" class="search" type="search" placeholder="Поиск по словарю">
+        <div id="dict-list" class="dict-list"></div>
+        <p id="dict-empty" class="muted center" hidden>Пока пусто. Добавь первое слово на вкладке «Добавить».</p>
+        <div class="account">
+          <span id="account-email" class="muted small"></span>
+          <button id="logout" class="btn-link small" type="button">Выйти</button>
+        </div>
+      </section>
+    </main>
+
+    <nav class="tabbar" aria-label="Разделы">
+      <button class="tab active" data-view="add" type="button">
+        <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <span>Добавить</span>
+      </button>
+      <button class="tab" data-view="learn" type="button">
+        <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="6" width="13" height="14" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 3.5h9.5A2.5 2.5 0 0 1 20 6v11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <span>Учить</span>
+      </button>
+      <button class="tab" data-view="dict" type="button">
+        <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5.5A1.5 1.5 0 0 1 6.5 4H19v14H6.5A1.5 1.5 0 0 0 5 19.5zM5 19.5A1.5 1.5 0 0 0 6.5 21H19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 8.5h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <span>Словарь</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- Language sheet -->
+  <dialog id="lang-sheet" class="sheet">
+    <form method="dialog">
+      <h3>Какой язык учишь?</h3>
+      <p class="muted small">Подсказка для Грока. Если впишешь слово по-русски, оно переведётся на этот язык. В тренировке показываются слова только этого языка.</p>
+      <div id="lang-options" class="lang-options"></div>
+      <button class="btn btn-ghost" value="close">Закрыть</button>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

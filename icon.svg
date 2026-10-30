@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#f4efe6"/>
+  <rect x="150" y="118" width="250" height="300" rx="34" fill="#e8c9b9" transform="rotate(10 275 268)"/>
+  <rect x="118" y="104" width="250" height="300" rx="34" fill="#d2492a" transform="rotate(-6 243 254)"/>
+  <text x="243" y="320" text-anchor="middle" font-family="Georgia, serif" font-size="210" font-weight="600" fill="#ffffff" transform="rotate(-6 243 254)">C</text>
+</svg>
