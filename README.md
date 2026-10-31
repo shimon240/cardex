@@ -9,6 +9,6 @@
 
 ## Устройство
 
-- Фронтенд: статические `index.html`, `app.js`, `styles.css` (без сборки), хостинг на GitHub Pages.
+- Фронтенд: статические `index.html`, `app.js`, `styles.css` (без сборки), хостинг на GitHub Pages. Pages кэширует файлы на 10 минут, поэтому при изменении `app.js` или `styles.css` поднимай `?v=N` в их ссылках в `index.html`, иначе браузер соберёт новую страницу со старым скриптом.
 - Данные: Supabase, таблица `public.cards` с RLS (каждый видит только свои карточки).
 - Grok: edge-функция `supabase/functions/grok`. Ключ xAI хранится в Supabase Vault (`xai_api_key`) и читается только сервисной ролью через `public.get_xai_key()`.
