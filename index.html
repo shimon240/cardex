@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=Geist+Mono:wght@400&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=2">
+  <link rel="stylesheet" href="styles.css?v=3">
 </head>
 <body>
   <!-- Auth -->
@@ -47,7 +47,11 @@
   <div id="app" class="app" hidden>
     <header class="topbar">
       <div class="topbar-title" id="topbar-title">Добавить слово</div>
-      <nav id="sections" class="sections" aria-label="Языки"></nav>
+      <label class="lang-pick">
+        <span id="section-label"></span>
+        <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <select id="section-select" aria-label="Язык"></select>
+      </label>
     </header>
 
     <main class="views">
@@ -191,6 +195,6 @@
 
   <div id="toast" class="toast" role="status" hidden></div>
 
-  <script type="module" src="app.js?v=2"></script>
+  <script type="module" src="app.js?v=3"></script>
 </body>
 </html>

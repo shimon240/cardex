@@ -148,30 +148,23 @@ input::placeholder, textarea::placeholder { color: var(--ink-4); }
 .app { min-height: 100dvh; display: flex; flex-direction: column; }
 .topbar {
   position: sticky; top: 0; z-index: 5;
-  display: flex; flex-direction: column; gap: 12px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding: calc(14px + env(safe-area-inset-top)) 16px 12px;
   background: color-mix(in srgb, var(--canvas) 90%, transparent);
   backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--line);
 }
-.topbar-title { font-size: 32px; line-height: 1.13; }
-.sections {
-  display: flex; gap: 6px; overflow-x: auto;
-  margin: 0 -16px; padding: 0 16px 2px;
-  scrollbar-width: none; -webkit-overflow-scrolling: touch;
-}
-.sections::-webkit-scrollbar { display: none; }
-.section {
-  flex: none; display: inline-flex; align-items: center; gap: 7px;
-  height: 34px; padding: 0 14px;
+.topbar-title { font-size: 26px; line-height: 1.2; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lang-pick {
+  position: relative; flex: none; display: inline-flex; align-items: center; gap: 6px;
+  max-width: 50%; height: 34px; padding: 0 12px 0 14px;
   background: var(--canvas); border: 1px solid var(--line-btn); border-radius: 9999px;
   font-weight: 500; font-size: 14px; color: var(--ink);
-  transition: background .15s ease, color .15s ease;
 }
-.section span { font: 400 12px/1 var(--mono); color: var(--ink-4); font-variant-numeric: tabular-nums; }
-.section.active { background: var(--ink); border-color: var(--ink); color: var(--on-ink); }
-.section.active span { color: inherit; opacity: .6; }
-.section-add { width: 34px; padding: 0; justify-content: center; font-size: 18px; font-weight: 300; }
+.lang-pick span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lang-pick svg { flex: none; color: var(--ink-3); }
+.lang-pick select { position: absolute; inset: 0; width: 100%; opacity: 0; font-size: 16px; cursor: pointer; }
+.lang-pick:focus-within { border-color: var(--ink); }
 .views { flex: 1; width: 100%; max-width: 560px; margin: 0 auto; padding: 20px 16px calc(var(--tabbar-h) + 28px + env(safe-area-inset-bottom)); }
 .view { animation: fade .2s ease; }
 @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }

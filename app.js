@@ -247,14 +247,15 @@ function sections() {
   return [...counts].map(([code, count]) => ({ code, count }));
 }
 
+// Native <select> for the picker; the visible pill shows just the current section.
 function renderSections() {
-  const chip = (code, label, count) =>
-    `<button type="button" class="section ${code === state.studyLang ? "active" : ""}" data-code="${esc(code ?? "")}">${esc(label)}<span>${count}</span></button>`;
-  $("#sections").innerHTML =
-    chip(null, "Все", state.cards.length) +
-    sections().map((s) => chip(s.code, langName(s.code), s.count)).join("") +
-    `<button type="button" class="section section-add" id="section-add" aria-label="Новый раздел">+</button>`;
-  $("#sections .active")?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  const opt = (code, label, count) => `<option value="${esc(code ?? "")}">${esc(label)} · ${count}</option>`;
+  $("#section-select").innerHTML =
+    opt(null, "Все языки", state.cards.length) +
+    sections().map((s) => opt(s.code, langName(s.code), s.count)).join("") +
+    `<option value="+">+ Новый раздел…</option>`;
+  $("#section-select").value = state.studyLang ?? "";
+  $("#section-label").textContent = langName(state.studyLang);
 }
 
 function renderAll() {
@@ -269,10 +270,10 @@ function selectSection(code) {
   renderAll();
 }
 
-$("#sections").addEventListener("click", (e) => {
-  const b = e.target.closest("button");
-  if (!b) return;
-  if (b.id === "section-add") {
+$("#section-select").addEventListener("change", (e) => {
+  const code = e.target.value;
+  e.target.value = state.studyLang ?? "";
+  if (code === "+") {
     const taken = new Set(sections().map((s) => s.code));
     $("#lang-options").innerHTML = LANGS.filter((l) => !taken.has(l.code))
       .map((l) => `<button type="button" data-code="${l.code}">${esc(langName(l.code))}</button>`)
@@ -281,7 +282,7 @@ $("#sections").addEventListener("click", (e) => {
     return;
   }
   if (state.session) return toast("Сначала закончи тренировку");
-  selectSection(b.dataset.code);
+  selectSection(code);
 });
 
 $("#lang-options").addEventListener("click", (e) => {
