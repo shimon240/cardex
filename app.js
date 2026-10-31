@@ -38,7 +38,7 @@ const store = {
 const state = {
   user: null,
   cards: [],
-  studyLang: store.get("cardex.lang", null),        // current section; null = all languages
+  studyLang: store.get("cardex.lang", null),        // current section; null only until cards first load
   extraLangs: store.get("cardex.extraLangs", []),   // sections created by hand, maybe still empty
   direction: store.get("cardex.dir", "from_ru"),
   session: null,
@@ -72,7 +72,7 @@ function normLang(code) {
 
 // Russian name of a language, capitalized: "Немецкий".
 function langName(code) {
-  if (!code) return "Все языки";
+  if (!code) return "";
   const ru = LANGS.find((l) => l.code === code)?.ru ?? state.cards.find((c) => c.language === code)?.language_name ?? code;
   return ru.charAt(0).toUpperCase() + ru.slice(1);
 }
@@ -197,6 +197,11 @@ async function loadCards() {
   const { data, error } = await sb.from("cards").select("*").order("created_at", { ascending: false });
   if (error) return toast("Не удалось загрузить словарь: " + error.message);
   state.cards = data;
+  // There is no "all languages" view: start in the language of the newest word.
+  if (!state.studyLang) {
+    state.studyLang = data[0]?.language ?? "en";
+    store.set("cardex.lang", state.studyLang);
+  }
   renderAll();
 }
 
@@ -251,7 +256,6 @@ function sections() {
 function renderSections() {
   const opt = (code, label, count) => `<option value="${esc(code ?? "")}">${esc(label)} · ${count}</option>`;
   $("#section-select").innerHTML =
-    opt(null, "Все языки", state.cards.length) +
     sections().map((s) => opt(s.code, langName(s.code), s.count)).join("") +
     `<option value="+">+ Новый раздел…</option>`;
   $("#section-select").value = state.studyLang ?? "";
@@ -265,7 +269,7 @@ function renderAll() {
 }
 
 function selectSection(code) {
-  state.studyLang = code || null;
+  state.studyLang = code;
   store.set("cardex.lang", state.studyLang);
   renderAll();
 }
@@ -473,7 +477,7 @@ $("#manual-form").addEventListener("submit", async (e) => {
 /* ---------- learn mode ---------- */
 
 function poolCards() {
-  return state.studyLang ? state.cards.filter((c) => c.language === state.studyLang) : state.cards;
+  return state.cards.filter((c) => c.language === state.studyLang);
 }
 
 function dueCards() {
@@ -494,10 +498,10 @@ function renderLearnStart() {
   go.disabled = pool.length === 0;
   if (!pool.length) {
     go.textContent = "Начать";
-    note.textContent = state.studyLang ? `В разделе «${langName(state.studyLang)}» пока нет слов.` : "Сначала добавь пару слов.";
+    note.textContent = `В разделе «${langName(state.studyLang)}» пока нет слов.`;
   } else if (due.length) {
     go.textContent = `Начать · ${Math.min(due.length, SESSION_SIZE)} слов`;
-    note.textContent = state.studyLang || sections().length < 2 ? "" : "Все языки вперемешку";
+    note.textContent = "";
   } else {
     go.textContent = "Повторить всё равно";
     note.textContent = "На сегодня всё повторено. Можно пройтись по случайным словам.";
@@ -702,7 +706,6 @@ function renderDict() {
   const q = norm($("#dict-search").value);
   const pool = poolCards();
   const list = pool.filter((c) => !q || norm(c.word).includes(q) || norm(c.translation).includes(q));
-  const showLang = !state.studyLang && sections().length > 1;
   $("#dict-empty").hidden = pool.length > 0;
   $("#dict-empty").textContent = state.cards.length
     ? `В разделе «${langName(state.studyLang)}» пока нет слов.`
@@ -711,7 +714,7 @@ function renderDict() {
     const boxes = Array.from({ length: LEARNED_BOX }, (_, i) => `<i class="${i < c.box ? "on" : ""}"></i>`).join("");
     return `<div class="dict-item" data-id="${c.id}">
       <button class="dict-row" type="button">
-        <div class="dw"><div class="dw-word">${esc(c.word)}</div><div class="dw-tr">${showLang ? `<span class="dw-lang">${esc(langName(c.language).toLowerCase())} · </span>` : ""}${esc(c.translation)}</div></div>
+        <div class="dw"><div class="dw-word">${esc(c.word)}</div><div class="dw-tr">${esc(c.translation)}</div></div>
         <div class="boxes" title="Прогресс">${boxes}</div>
       </button>
     </div>`;

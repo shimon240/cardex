@@ -345,7 +345,6 @@ input.invalid { border-color: var(--bad) !important; }
 .dict-row .dw { flex: 1; min-width: 0; }
 .dict-row .dw-word { font-size: 22px; line-height: 1.2; }
 .dict-row .dw-tr { margin-top: 2px; color: var(--ink-3); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.dict-row .dw-lang { font-family: var(--mono); font-size: 12px; color: var(--ink-4); }
 .boxes { display: flex; gap: 3px; flex: none; }
 .boxes i { width: 4px; height: 14px; border-radius: 9999px; background: var(--plate); }
 .boxes i.on { background: var(--ink); }
