@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Cardex</title>
-  <meta name="description" content="Карточки иностранных слов: сфотографируй, добавь, учи.">
+  <meta name="description" content="Карточки иностранных слов: впиши, добавь, учи.">
   <meta name="theme-color" content="#fdfcfc" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#0f0e0d" media="(prefers-color-scheme: dark)">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -25,7 +25,7 @@
       <div class="brand">
         <div class="sphere" aria-hidden="true"></div>
         <h1>Cardex</h1>
-        <p class="muted">Сфотографируй слово — Грок объяснит,<br>а карточки помогут запомнить.</p>
+        <p class="muted">Впиши слово — Грок объяснит,<br>а карточки помогут запомнить.</p>
       </div>
       <form id="auth-form" class="stack" autocomplete="on">
         <label class="field">
@@ -53,26 +53,42 @@
     <main class="views">
       <!-- Add -->
       <section id="view-add" class="view">
-        <div class="capture">
-          <button id="camera-btn" class="capture-main" type="button">
-            <span class="sphere" aria-hidden="true"><span class="sphere-core"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.3l1.2-1.8A1.5 1.5 0 0 1 10.2 3.5h3.6a1.5 1.5 0 0 1 1.2.7L16.2 6h1.3A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="12" cy="12.3" r="3.4" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></span></span>
-            <span>Сфотографировать</span>
-            <small>потом обрежешь до нужного слова</small>
-          </button>
-          <button id="gallery-btn" class="btn btn-ghost" type="button">Выбрать фото из галереи</button>
-          <input id="camera-input" type="file" accept="image/*" capture="environment" hidden>
-          <input id="gallery-input" type="file" accept="image/*" hidden>
-        </div>
-
-        <div class="divider"><span>или впиши слово</span></div>
-
         <form id="text-form" class="text-form">
           <textarea id="text-input" rows="2" placeholder="Например, Fernweh или «тоска»" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go"></textarea>
-          <button id="text-submit" class="btn btn-primary btn-lg" type="submit">Разобрать</button>
+          <div class="row">
+            <button id="manual-open" class="btn btn-ghost btn-lg" type="button">Заполнить вручную</button>
+            <button id="text-submit" class="btn btn-primary btn-lg" type="submit">Разобрать</button>
+          </div>
         </form>
 
         <div id="add-status" class="status" hidden></div>
         <div id="add-results" class="results"></div>
+      </section>
+
+      <!-- Manual entry -->
+      <section id="view-manual" class="view" hidden>
+        <form id="manual-form" class="manual" novalidate>
+          <button id="manual-back" class="btn-link back" type="button">← Назад</button>
+          <label class="field">
+            <span>Слово</span>
+            <input id="m-word" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="next">
+          </label>
+          <label class="field">
+            <span>Язык</span>
+            <span class="select"><select id="m-lang"></select></span>
+          </label>
+          <div class="field">
+            <span>Значения</span>
+            <div id="m-meanings" class="m-list"></div>
+            <button id="m-add-meaning" class="btn-link m-add" type="button">+ Ещё значение</button>
+          </div>
+          <div class="field">
+            <span>Примеры <em class="opt">· необязательно</em></span>
+            <div id="m-examples" class="m-list"></div>
+            <button id="m-add-example" class="btn-link m-add" type="button">+ Ещё пример</button>
+          </div>
+          <button id="manual-submit" class="btn btn-primary btn-lg" type="submit">Добавить в словарь</button>
+        </form>
       </section>
 
       <!-- Learn -->
@@ -172,23 +188,6 @@
       <button class="btn btn-ghost" value="close">Закрыть</button>
     </form>
   </dialog>
-
-  <!-- Photo crop editor -->
-  <div id="crop" class="crop" hidden>
-    <div class="crop-top">
-      <button id="crop-cancel" class="crop-btn" type="button">Отмена</button>
-      <div class="crop-hint">Обрежь до нужного слова</div>
-      <button id="crop-reset" class="crop-btn" type="button" disabled>Сбросить</button>
-    </div>
-    <div id="crop-area" class="crop-area">
-      <div id="crop-stage" class="crop-stage"><canvas id="crop-photo"></canvas></div>
-      <div id="crop-box" class="crop-box"><i class="tl"></i><i class="tr"></i><i class="bl"></i><i class="br"></i></div>
-    </div>
-    <div class="crop-bottom">
-      <div class="crop-status">Тяни за углы · проведи вне рамки, чтобы выделить заново · двумя пальцами — увеличить</div>
-      <button id="crop-go" class="btn btn-primary btn-lg" type="button">Распознать</button>
-    </div>
-  </div>
 
   <div id="toast" class="toast" role="status" hidden></div>
 

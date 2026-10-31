@@ -1,6 +1,5 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/+esm";
 import { SUPABASE_URL, SUPABASE_KEY } from "./config.js";
-import { openCrop } from "./crop.js";
 
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -225,10 +224,11 @@ async function saveCard(item) {
 
 /* ---------- navigation ---------- */
 
-const TITLES = { add: "Добавить слово", learn: "Тренировка", dict: "Словарь" };
+const TITLES = { add: "Добавить слово", manual: "Новое слово", learn: "Тренировка", dict: "Словарь" };
 
 function showView(name) {
-  $$(".tab").forEach((t) => t.classList.toggle("active", t.dataset.view === name));
+  const tab = name === "manual" ? "add" : name;
+  $$(".tab").forEach((t) => t.classList.toggle("active", t.dataset.view === tab));
   $$(".view").forEach((v) => (v.hidden = v.id !== `view-${name}`));
   $("#topbar-title").textContent = TITLES[name];
   if (name === "learn" && !state.session) renderLearnStart();
@@ -307,11 +307,9 @@ function setAddStatus(html, kind = "") {
   s.innerHTML = html || "";
 }
 
-// payload is { text } or { image } (a JPEG data URL).
 async function analyze(payload) {
   $("#add-results").innerHTML = "";
-  const thumb = payload.image ? `<img src="${payload.image}" alt="">` : "";
-  setAddStatus(`${thumb}<div class="spinner"></div><span>${payload.image ? "Грок читает фото…" : "Грок думает…"}</span>`);
+  setAddStatus(`<div class="spinner"></div><span>Грок думает…</span>`);
   $("#text-submit").disabled = true;
   try {
     const studyLanguage = state.studyLang ? langName(state.studyLang).toLowerCase() : null;
@@ -356,23 +354,6 @@ function renderResults(items) {
   });
 }
 
-async function onPhoto(e) {
-  const file = e.target.files?.[0];
-  e.target.value = "";
-  if (!file) return;
-  try {
-    const image = await openCrop(file);
-    if (image) analyze({ image });
-  } catch (err) {
-    setAddStatus(esc(err.message), "error");
-  }
-}
-
-$("#camera-btn").addEventListener("click", () => $("#camera-input").click());
-$("#gallery-btn").addEventListener("click", () => $("#gallery-input").click());
-$("#camera-input").addEventListener("change", onPhoto);
-$("#gallery-input").addEventListener("change", onPhoto);
-
 function submitText() {
   const text = $("#text-input").value.trim();
   if (!text) return;
@@ -398,6 +379,95 @@ if (pendingText) {
   $("#text-input").value = pendingText;
   history.replaceState(null, "", location.pathname);
 }
+
+/* ---------- manual entry ---------- */
+
+// The first meaning and first example are always there; extra rows can be removed.
+function manualRow(kind, removable) {
+  const el = document.createElement("div");
+  el.className = "m-row";
+  el.innerHTML = kind === "meaning"
+    ? `<input type="text" class="m-meaning" placeholder="Перевод на русский" autocomplete="off" enterkeyhint="next">`
+    : `<div class="m-ex">
+        <input type="text" class="m-ex-text" placeholder="Пример" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="next">
+        <input type="text" class="m-ex-ru" placeholder="Перевод примера" autocomplete="off" enterkeyhint="next">
+      </div>`;
+  if (removable) el.insertAdjacentHTML("beforeend", `<button type="button" class="m-remove" aria-label="Убрать">×</button>`);
+  return el;
+}
+
+function openManual() {
+  $("#manual-form").reset();
+  $("#m-meanings").replaceChildren(manualRow("meaning", false));
+  $("#m-examples").replaceChildren(manualRow("example", false));
+  const codes = [...new Set([...sections().map((s) => s.code), ...LANGS.map((l) => l.code)])];
+  $("#m-lang").innerHTML = codes.map((c) => `<option value="${esc(c)}">${esc(langName(c))}</option>`).join("");
+  $("#m-lang").value = state.studyLang || state.cards[0]?.language || "en";
+  $("#m-word").value = $("#text-input").value.trim();
+  showView("manual");
+  ($("#m-word").value ? $(".m-meaning") : $("#m-word")).focus({ preventScroll: true });
+}
+
+function addManualRow(kind) {
+  const list = kind === "meaning" ? $("#m-meanings") : $("#m-examples");
+  const row = manualRow(kind, true);
+  list.appendChild(row);
+  row.querySelector("input").focus();
+}
+
+$("#manual-open").addEventListener("click", openManual);
+$("#manual-back").addEventListener("click", () => showView("add"));
+$("#m-add-meaning").addEventListener("click", () => addManualRow("meaning"));
+$("#m-add-example").addEventListener("click", () => addManualRow("example"));
+$("#manual-form").addEventListener("click", (e) => {
+  e.target.closest(".m-remove")?.closest(".m-row").remove();
+});
+$("#manual-form").addEventListener("input", (e) => e.target.classList.remove("invalid"));
+// Return moves to the next field instead of submitting a half-filled card.
+$("#manual-form").addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" || e.isComposing || e.target.tagName !== "INPUT") return;
+  e.preventDefault();
+  const inputs = $$("#manual-form input");
+  const next = inputs[inputs.indexOf(e.target) + 1];
+  next ? next.focus() : e.target.blur();
+});
+
+$("#manual-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const word = $("#m-word").value.trim();
+  const meanings = $$(".m-meaning").map((i) => i.value.trim()).filter(Boolean);
+  const missing = !word ? $("#m-word") : !meanings.length ? $(".m-meaning") : null;
+  if (missing) {
+    missing.classList.add("invalid");
+    missing.focus();
+    return toast(word ? "Впиши хотя бы одно значение" : "Впиши слово");
+  }
+  const examples = $$(".m-ex")
+    .map((ex) => ({ text: ex.querySelector(".m-ex-text").value.trim(), ru: ex.querySelector(".m-ex-ru").value.trim() }))
+    .filter((ex) => ex.text);
+  const language = $("#m-lang").value;
+  const btn = $("#manual-submit");
+  btn.disabled = true;
+  try {
+    const r = await saveCard({
+      word,
+      language,
+      language_name: langName(language).toLowerCase(),
+      translation: meanings.join(", "),
+      examples,
+    });
+    if (r.duplicate) return toast("Это слово уже в словаре");
+    $("#text-input").value = "";
+    $("#add-results").innerHTML = "";
+    setAddStatus("");
+    showView("add");
+    if (!state.studyLang || state.studyLang === normLang(language)) toast(`«${word}» в словаре`);
+  } catch (err) {
+    toast("Не сохранилось: " + err.message);
+  } finally {
+    btn.disabled = false;
+  }
+});
 
 /* ---------- learn mode ---------- */
 
