@@ -286,7 +286,7 @@ function renderSections() {
   const opt = (code, label, count) => `<option value="${esc(code ?? "")}">${esc(label)} · ${count}</option>`;
   $("#section-select").innerHTML =
     sections().map((s) => opt(s.code, langName(s.code), s.count)).join("") +
-    `<option value="+">+ Новый раздел…</option>`;
+    `<option value="+">+ Добавить язык…</option>`;
   $("#section-select").value = state.studyLang ?? "";
   $("#section-label").textContent = langName(state.studyLang);
 }
