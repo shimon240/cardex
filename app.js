@@ -48,6 +48,9 @@ const state = {
 
 function toast(msg) {
   const t = $("#toast");
+  // An open modal dialog sits in the top layer, so the toast has to live inside it to be seen.
+  const host = $("dialog[open]:not(.closing)") ?? document.body;
+  if (t.parentNode !== host) host.appendChild(t);
   t.textContent = msg;
   t.hidden = false;
   clearTimeout(toast.timer);
@@ -181,7 +184,8 @@ sb.auth.onAuthStateChange((_event, session) => {
     setTimeout(() => {
       loadCards();
       if (pendingText) {
-        showView("add");
+        openAddSheet();
+        $("#text-input").value = pendingText;
         analyze({ text: pendingText });
         pendingText = null;
       }
@@ -229,15 +233,20 @@ async function saveCard(item) {
 
 /* ---------- navigation ---------- */
 
-const TITLES = { add: "Добавить слово", manual: "Новое слово", learn: "Тренировка", dict: "Словарь" };
+let currentView = "dict";
 
 function showView(name) {
-  const tab = name === "manual" ? "add" : name;
-  $$(".tab").forEach((t) => t.classList.toggle("active", t.dataset.view === tab));
+  currentView = name;
+  $$(".tab").forEach((t) => t.classList.toggle("active", t.dataset.view === name));
   $$(".view").forEach((v) => (v.hidden = v.id !== `view-${name}`));
-  $("#topbar-title").textContent = TITLES[name];
   if (name === "learn" && !state.session) renderLearnStart();
+  syncFab();
   window.scrollTo(0, 0);
+}
+
+// The + button would cover the answer buttons during a training round.
+function syncFab() {
+  $("#fab").hidden = currentView === "learn" && !!state.session;
 }
 
 $$(".tab").forEach((t) => t.addEventListener("click", () => showView(t.dataset.view)));
@@ -303,7 +312,87 @@ $("#lang-sheet").addEventListener("click", (e) => {
   if (e.target === e.currentTarget) e.currentTarget.close();
 });
 
+/* ---------- add sheet ---------- */
+
+const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+
+let closeTimer;
+
+function openAddSheet() {
+  const d = $("#add-sheet");
+  clearTimeout(closeTimer);
+  d.classList.remove("closing");
+  $("#text-input").value = "";
+  $("#add-results").innerHTML = "";
+  setAddStatus("");
+  showAddPane("add");
+  d.style.transform = "";
+  if (!d.open) d.showModal();
+  $("#text-input").focus({ preventScroll: true });
+}
+
+function closeAddSheet() {
+  const d = $("#add-sheet");
+  if (!d.open || d.classList.contains("closing")) return;
+  d.classList.add("closing");
+  // A timer rather than animationend: children's animations bubble up, and hidden tabs may never fire it.
+  closeTimer = setTimeout(() => {
+    d.classList.remove("closing");
+    d.style.transform = "";
+    d.close();
+  }, reducedMotion.matches ? 0 : 220);
+}
+
+function showAddPane(name) {
+  $("#add-pane").hidden = name !== "add";
+  $("#manual-pane").hidden = name !== "manual";
+  $("#add-title").textContent = name === "manual" ? "Вручную" : "Новое слово";
+  $("#add-sheet").scrollTop = 0;
+}
+
+$("#fab").addEventListener("click", openAddSheet);
+$("#add-close").addEventListener("click", closeAddSheet);
+$("#add-sheet").addEventListener("cancel", (e) => {
+  e.preventDefault();
+  closeAddSheet();
+});
+// Clicks on the backdrop land on the dialog itself, outside its box.
+$("#add-sheet").addEventListener("click", (e) => {
+  if (e.target !== e.currentTarget) return;
+  const r = e.currentTarget.getBoundingClientRect();
+  if (e.clientY < r.top || e.clientX < r.left || e.clientX > r.right) closeAddSheet();
+});
+
+// Drag the sheet down by its head to dismiss it.
+{
+  const d = $("#add-sheet");
+  let startY = null, dy = 0;
+  $(".sheet-head").addEventListener("pointerdown", (e) => {
+    if (e.target.closest("button")) return;
+    startY = e.clientY;
+    dy = 0;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    d.style.transition = "none";
+  });
+  $(".sheet-head").addEventListener("pointermove", (e) => {
+    if (startY === null) return;
+    dy = Math.max(0, e.clientY - startY);
+    d.style.transform = `translateY(${dy}px)`;
+  });
+  const end = () => {
+    if (startY === null) return;
+    startY = null;
+    d.style.transition = "";
+    if (dy > 90) closeAddSheet();
+    else d.style.transform = "";
+  };
+  $(".sheet-head").addEventListener("pointerup", end);
+  $(".sheet-head").addEventListener("pointercancel", end);
+}
+
 /* ---------- add mode ---------- */
+
+let analyzeSeq = 0;
 
 function setAddStatus(html, kind = "") {
   const s = $("#add-status");
@@ -313,12 +402,14 @@ function setAddStatus(html, kind = "") {
 }
 
 async function analyze(payload) {
+  const seq = ++analyzeSeq;
   $("#add-results").innerHTML = "";
   setAddStatus(`<div class="spinner"></div><span>Грок думает…</span>`);
   $("#text-submit").disabled = true;
   try {
     const studyLanguage = state.studyLang ? langName(state.studyLang).toLowerCase() : null;
     const res = await grok({ action: "analyze", studyLanguage, ...payload });
+    if (seq !== analyzeSeq) return; // the sheet was reopened meanwhile
     if (!res.items?.length) {
       setAddStatus(esc(res.error || "Не нашёл иностранных слов. Попробуй ещё раз."), "error");
       return;
@@ -326,7 +417,7 @@ async function analyze(payload) {
     setAddStatus("");
     renderResults(res.items);
   } catch (err) {
-    setAddStatus("Ошибка: " + esc(err.message), "error");
+    if (seq === analyzeSeq) setAddStatus("Ошибка: " + esc(err.message), "error");
   } finally {
     $("#text-submit").disabled = false;
   }
@@ -380,10 +471,7 @@ $("#text-input").addEventListener("keydown", (e) => {
 // Text handed over by a link, e.g. an iOS Shortcut: …/cardex/?text=Fernweh
 const params = new URLSearchParams(location.search);
 let pendingText = params.get("text")?.trim() || null;
-if (pendingText) {
-  $("#text-input").value = pendingText;
-  history.replaceState(null, "", location.pathname);
-}
+if (pendingText) history.replaceState(null, "", location.pathname);
 
 /* ---------- manual entry ---------- */
 
@@ -409,7 +497,7 @@ function openManual() {
   $("#m-lang").innerHTML = codes.map((c) => `<option value="${esc(c)}">${esc(langName(c))}</option>`).join("");
   $("#m-lang").value = state.studyLang || state.cards[0]?.language || "en";
   $("#m-word").value = $("#text-input").value.trim();
-  showView("manual");
+  showAddPane("manual");
   ($("#m-word").value ? $(".m-meaning") : $("#m-word")).focus({ preventScroll: true });
 }
 
@@ -421,7 +509,7 @@ function addManualRow(kind) {
 }
 
 $("#manual-open").addEventListener("click", openManual);
-$("#manual-back").addEventListener("click", () => showView("add"));
+$("#manual-back").addEventListener("click", () => showAddPane("add"));
 $("#m-add-meaning").addEventListener("click", () => addManualRow("meaning"));
 $("#m-add-example").addEventListener("click", () => addManualRow("example"));
 $("#manual-form").addEventListener("click", (e) => {
@@ -462,10 +550,7 @@ $("#manual-form").addEventListener("submit", async (e) => {
       examples,
     });
     if (r.duplicate) return toast("Это слово уже в словаре");
-    $("#text-input").value = "";
-    $("#add-results").innerHTML = "";
-    setAddStatus("");
-    showView("add");
+    closeAddSheet();
     if (!state.studyLang || state.studyLang === normLang(language)) toast(`«${word}» в словаре`);
   } catch (err) {
     toast("Не сохранилось: " + err.message);
@@ -534,12 +619,14 @@ function startSession() {
   $("#learn-start").hidden = true;
   $("#learn-done").hidden = true;
   $("#learn-session").hidden = false;
+  syncFab();
   nextQuestion();
 }
 
 function endSession() {
   const s = state.session;
   state.session = null;
+  syncFab();
   $("#learn-session").hidden = true;
   if (s && s.index > 0) {
     $("#learn-done").hidden = false;
@@ -709,7 +796,7 @@ function renderDict() {
   $("#dict-empty").hidden = pool.length > 0;
   $("#dict-empty").textContent = state.cards.length
     ? `В разделе «${langName(state.studyLang)}» пока нет слов.`
-    : "Пока пусто. Добавь первое слово на вкладке «Добавить».";
+    : "Пока пусто. Нажми «+», чтобы добавить первое слово.";
   $("#dict-list").innerHTML = list.map((c) => {
     const boxes = Array.from({ length: LEARNED_BOX }, (_, i) => `<i class="${i < c.box ? "on" : ""}"></i>`).join("");
     return `<div class="dict-item" data-id="${c.id}">
