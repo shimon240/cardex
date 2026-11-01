@@ -570,7 +570,7 @@ function renderLearnStart() {
     go.textContent = "Начать";
     note.textContent = `В разделе «${langName(state.studyLang)}» пока нет слов.`;
   } else if (due.length) {
-    go.textContent = `Начать · ${Math.min(due.length, SESSION_SIZE)} слов`;
+    go.textContent = "Начать";
     note.textContent = "";
   } else {
     go.textContent = "Повторить всё равно";
