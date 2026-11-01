@@ -1,7 +1,7 @@
 {
   "name": "Cardex",
   "short_name": "Cardex",
-  "description": "Карточки иностранных слов: сфотографируй, добавь, учи.",
+  "description": "Карточки иностранных слов: создавай сам и учи.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
