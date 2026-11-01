@@ -80,6 +80,15 @@ function langName(code) {
   return ru.charAt(0).toUpperCase() + ru.slice(1);
 }
 
+// Locative form for "На немецком", "На иврите".
+function langLocative(code) {
+  const name = langName(code).toLowerCase();
+  if (/(ий|ый|ой)$/.test(name)) return name.slice(0, -2) + "ом";
+  if (/ь$/.test(name)) return name.slice(0, -1) + "и";
+  if (/[бвгджзклмнпрстфхцчшщ]$/.test(name)) return name + "е";
+  return name;
+}
+
 async function grok(body) {
   const { data, error } = await sb.functions.invoke("grok", { body });
   if (error) {
@@ -88,6 +97,15 @@ async function grok(body) {
     throw new Error(msg);
   }
   return data;
+}
+
+// Clicks on the backdrop land on the dialog itself, outside its box.
+function onBackdropClick(dialog, close) {
+  dialog.addEventListener("click", (e) => {
+    if (e.target !== dialog) return;
+    const r = dialog.getBoundingClientRect();
+    if (e.clientY < r.top || e.clientY > r.bottom || e.clientX < r.left || e.clientX > r.right) close();
+  });
 }
 
 /* ---------- word card rendering ---------- */
@@ -180,11 +198,12 @@ sb.auth.onAuthStateChange((_event, session) => {
   $("#app").hidden = !user;
   if (user) {
     $("#account-email").textContent = user.email;
+    $("#pw-email").value = user.email;
     // Defer: awaiting Supabase calls inside this callback can deadlock the auth lock.
     setTimeout(() => {
       loadCards();
       if (pendingText) {
-        openAddSheet();
+        openAddModal();
         $("#text-input").value = pendingText;
         analyze({ text: pendingText });
         pendingText = null;
@@ -192,6 +211,7 @@ sb.auth.onAuthStateChange((_event, session) => {
     }, 0);
   } else {
     state.cards = [];
+    showView("dict");
   }
 });
 
@@ -246,7 +266,7 @@ function showView(name) {
 
 // The + button would cover the answer buttons during a training round.
 function syncFab() {
-  $("#fab").hidden = currentView === "learn" && !!state.session;
+  $("#fab").hidden = currentView === "profile" || (currentView === "learn" && !!state.session);
 }
 
 $$(".tab").forEach((t) => t.addEventListener("click", () => showView(t.dataset.view)));
@@ -291,7 +311,7 @@ $("#section-select").addEventListener("change", (e) => {
     $("#lang-options").innerHTML = LANGS.filter((l) => !taken.has(l.code))
       .map((l) => `<button type="button" data-code="${l.code}">${esc(langName(l.code))}</button>`)
       .join("");
-    $("#lang-sheet").showModal();
+    $("#lang-modal").showModal();
     return;
   }
   if (state.session) return toast("Сначала закончи тренировку");
@@ -305,90 +325,54 @@ $("#lang-options").addEventListener("click", (e) => {
     state.extraLangs.push(b.dataset.code);
     store.set("cardex.extraLangs", state.extraLangs);
   }
-  $("#lang-sheet").close();
+  $("#lang-modal").close();
   selectSection(b.dataset.code);
 });
-$("#lang-sheet").addEventListener("click", (e) => {
-  if (e.target === e.currentTarget) e.currentTarget.close();
-});
+onBackdropClick($("#lang-modal"), () => $("#lang-modal").close());
 
-/* ---------- add sheet ---------- */
+/* ---------- add modal ---------- */
 
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 
 let closeTimer;
 
-function openAddSheet() {
-  const d = $("#add-sheet");
+function openAddModal() {
+  const d = $("#add-modal");
   clearTimeout(closeTimer);
   d.classList.remove("closing");
   $("#text-input").value = "";
   $("#add-results").innerHTML = "";
   setAddStatus("");
   showAddPane("add");
-  d.style.transform = "";
   if (!d.open) d.showModal();
   $("#text-input").focus({ preventScroll: true });
 }
 
-function closeAddSheet() {
-  const d = $("#add-sheet");
+function closeAddModal() {
+  const d = $("#add-modal");
   if (!d.open || d.classList.contains("closing")) return;
   d.classList.add("closing");
   // A timer rather than animationend: children's animations bubble up, and hidden tabs may never fire it.
   closeTimer = setTimeout(() => {
     d.classList.remove("closing");
-    d.style.transform = "";
     d.close();
-  }, reducedMotion.matches ? 0 : 220);
+  }, reducedMotion.matches ? 0 : 160);
 }
 
 function showAddPane(name) {
   $("#add-pane").hidden = name !== "add";
   $("#manual-pane").hidden = name !== "manual";
   $("#add-title").textContent = name === "manual" ? "Вручную" : "Новое слово";
-  $("#add-sheet").scrollTop = 0;
+  $("#add-modal").scrollTop = 0;
 }
 
-$("#fab").addEventListener("click", openAddSheet);
-$("#add-close").addEventListener("click", closeAddSheet);
-$("#add-sheet").addEventListener("cancel", (e) => {
+$("#fab").addEventListener("click", openAddModal);
+$("#add-close").addEventListener("click", closeAddModal);
+$("#add-modal").addEventListener("cancel", (e) => {
   e.preventDefault();
-  closeAddSheet();
+  closeAddModal();
 });
-// Clicks on the backdrop land on the dialog itself, outside its box.
-$("#add-sheet").addEventListener("click", (e) => {
-  if (e.target !== e.currentTarget) return;
-  const r = e.currentTarget.getBoundingClientRect();
-  if (e.clientY < r.top || e.clientX < r.left || e.clientX > r.right) closeAddSheet();
-});
-
-// Drag the sheet down by its head to dismiss it.
-{
-  const d = $("#add-sheet");
-  let startY = null, dy = 0;
-  $(".sheet-head").addEventListener("pointerdown", (e) => {
-    if (e.target.closest("button")) return;
-    startY = e.clientY;
-    dy = 0;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    d.style.transition = "none";
-  });
-  $(".sheet-head").addEventListener("pointermove", (e) => {
-    if (startY === null) return;
-    dy = Math.max(0, e.clientY - startY);
-    d.style.transform = `translateY(${dy}px)`;
-  });
-  const end = () => {
-    if (startY === null) return;
-    startY = null;
-    d.style.transition = "";
-    if (dy > 90) closeAddSheet();
-    else d.style.transform = "";
-  };
-  $(".sheet-head").addEventListener("pointerup", end);
-  $(".sheet-head").addEventListener("pointercancel", end);
-}
+onBackdropClick($("#add-modal"), closeAddModal);
 
 /* ---------- add mode ---------- */
 
@@ -409,7 +393,7 @@ async function analyze(payload) {
   try {
     const studyLanguage = state.studyLang ? langName(state.studyLang).toLowerCase() : null;
     const res = await grok({ action: "analyze", studyLanguage, ...payload });
-    if (seq !== analyzeSeq) return; // the sheet was reopened meanwhile
+    if (seq !== analyzeSeq) return; // the modal was reopened meanwhile
     if (!res.items?.length) {
       setAddStatus(esc(res.error || "Не нашёл иностранных слов. Попробуй ещё раз."), "error");
       return;
@@ -550,7 +534,7 @@ $("#manual-form").addEventListener("submit", async (e) => {
       examples,
     });
     if (r.duplicate) return toast("Это слово уже в словаре");
-    closeAddSheet();
+    closeAddModal();
     if (!state.studyLang || state.studyLang === normLang(language)) toast(`«${word}» в словаре`);
   } catch (err) {
     toast("Не сохранилось: " + err.message);
@@ -577,6 +561,7 @@ function renderLearnStart() {
   $("#stat-total").textContent = pool.length;
   $("#stat-learned").textContent = pool.filter((c) => c.box >= LEARNED_BOX).length;
   $$("#direction button").forEach((b) => b.classList.toggle("active", b.dataset.dir === state.direction));
+  $('#direction [data-dir="to_ru"]').textContent = `На ${langLocative(state.studyLang)}`;
 
   const go = $("#learn-go");
   const note = $("#learn-note");
@@ -833,6 +818,42 @@ $("#dict-list").addEventListener("click", async (e) => {
   detail.innerHTML = `<div class="word-card">${wordCardHTML(card)}</div>
     <button class="btn btn-del" type="button">Удалить</button>`;
   item.appendChild(detail);
+});
+
+/* ---------- profile ---------- */
+
+$("#password-form").addEventListener("input", (e) => e.target.classList.remove("invalid"));
+
+$("#password-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const pw = $("#pw-new").value;
+  const repeat = $("#pw-repeat").value;
+  if (pw.length < 6) {
+    $("#pw-new").classList.add("invalid");
+    $("#pw-new").focus();
+    return toast("Пароль — минимум 6 символов");
+  }
+  if (repeat !== pw) {
+    $("#pw-repeat").classList.add("invalid");
+    $("#pw-repeat").focus();
+    return toast("Пароли не совпадают");
+  }
+  const btn = $("#pw-submit");
+  btn.disabled = true;
+  try {
+    const { error } = await sb.auth.updateUser({ password: pw });
+    if (error) throw error;
+    $("#password-form").reset();
+    $("#pw-email").value = state.user?.email ?? "";
+    toast("Пароль изменён");
+  } catch (err) {
+    const map = {
+      "New password should be different from the old password.": "Новый пароль совпадает со старым",
+    };
+    toast(map[err.message] ?? "Не получилось: " + err.message);
+  } finally {
+    btn.disabled = false;
+  }
 });
 
 /* ---------- boot ---------- */
