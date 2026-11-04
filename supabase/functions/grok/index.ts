@@ -36,13 +36,15 @@ Reply strictly with a JSON object and no commentary:
   "language": "BCP-47 language code, for example en, de, fr, es, it",
   "language_name": "the language's name in English, capitalized",
   "transcription": "IPA transcription without slashes",
-  "part_of_speech": "part of speech in ${lang}, abbreviated",
-  "translation": "short translation into ${lang}: 1–3 main options, comma-separated (for a word in ${lang} itself: 1–3 synonyms)",
-  "meaning": "1–2 sentences in ${lang}: the meaning, its nuances, when it is used",
-  "examples": [{"text": "a natural example in the word's language", "ru": "translation of the example into ${lang} (for a word in ${lang} itself: a plain paraphrase)"}]
+  "part_of_speech": "grammatical characteristics in ${lang}, abbreviated: the part of speech plus what matters for this word, such as gender or verb type",
+  "senses": [{
+    "meaning": "one distinct meaning of the word: a short translation into ${lang}, 1–3 comma-separated options (for a word in ${lang} itself: a short definition)",
+    "examples": [{"text": "a natural example of the word in this meaning, in the word's language", "ru": "translation of the example into ${lang} (for a word in ${lang} itself: a plain paraphrase)"}]
+  }]
 }],
 "error": null}
-Give exactly 3 examples of varying difficulty.
+Give one sense per genuinely distinct meaning, most common first, at most 4. Do not split shades of one meaning into separate senses.
+Every sense needs at least one example: a word with a single sense gets 3 examples of varying difficulty, a word with several senses gets 1–2 per sense.
 If the input is a word in ${lang} and a study language other than ${lang} is specified, translate it into the study language and build the card for the foreign word. If the study language is ${lang} or not specified, build the card for the word itself.
 If the word has a typo, correct it.
 If the input (or photo) is one word or a short set phrase, return only that. If it is a sentence or longer, return up to 5 of the most useful, not the simplest, words. If a word in the photo is cut off by the edge, restore it from the visible part. Ignore text in ${lang} unless the study language is ${lang}.
@@ -56,6 +58,22 @@ Reply strictly with JSON: {"correct": true|false, "feedback": "one short sentenc
 // The name of the language the user picked in their profile.
 function userLanguage(value: unknown): string {
   return (typeof value === "string" && value.trim().slice(0, 40)) || "English";
+}
+
+// Keeps only well-formed senses, and adds the flat translation and examples the trainer and dictionary read.
+function toCard(item: any) {
+  const senses = (Array.isArray(item?.senses) ? item.senses : [])
+    .filter((s: any) => typeof s?.meaning === "string" && s.meaning.trim())
+    .map((s: any) => ({
+      meaning: s.meaning.trim(),
+      examples: (Array.isArray(s.examples) ? s.examples : []).filter((e: any) => typeof e?.text === "string" && e.text.trim()),
+    }));
+  return {
+    ...item,
+    senses,
+    translation: senses.map((s: any) => s.meaning).join("; "),
+    examples: senses.flatMap((s: any) => s.examples),
+  };
 }
 
 async function grok(messages: unknown[]): Promise<any> {
@@ -113,7 +131,8 @@ Deno.serve(async (req) => {
         { role: "system", content: analyzeSystem(userLanguage(body.userLanguage)) },
         { role: "user", content: user },
       ]);
-      return reply({ items: Array.isArray(result.items) ? result.items : [], error: result.error ?? null });
+      const items = (Array.isArray(result.items) ? result.items : []).map(toCard).filter((c: any) => c.word && c.senses.length);
+      return reply({ items, error: result.error ?? null });
     }
 
     if (body.action === "check") {

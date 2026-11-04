@@ -92,12 +92,25 @@ function onBackdropClick(dialog, close) {
 
 /* ---------- word card rendering ---------- */
 
+// A card's meanings with their examples. Older cards have no senses, only one translation with its explanation.
+function cardSenses(c) {
+  return c.senses?.length ? c.senses : [{ meaning: c.translation, note: c.meaning, examples: c.examples || [] }];
+}
+
 function wordCardHTML(c) {
   const meta = [c.part_of_speech, langName(normLang(c.language))].filter(Boolean).map(esc).join(" · ");
   const ipa = c.transcription ? `<span class="ipa">[${esc(c.transcription)}]</span> · ` : "";
-  const examples = (c.examples || [])
-    .map((e) => `<li><div class="ex">${esc(e.text)}</div><div class="ex-ru">${esc(e.ru)}</div></li>`)
-    .join("");
+  const senses = cardSenses(c);
+  const sensesHTML = senses.map((s) => {
+    const examples = (s.examples || [])
+      .map((e) => `<li><div class="ex">${esc(e.text)}</div><div class="ex-ru">${esc(e.ru)}</div></li>`)
+      .join("");
+    return `<li>
+      <div class="wc-translation">${esc(s.meaning)}</div>
+      ${s.note ? `<div class="wc-meaning">${esc(s.note)}</div>` : ""}
+      ${examples ? `<ul class="wc-examples">${examples}</ul>` : ""}
+    </li>`;
+  }).join("");
   return `
     <div class="wc-head">
       <div>
@@ -106,9 +119,7 @@ function wordCardHTML(c) {
       </div>
       <button class="speak" type="button" data-speak="${esc(c.word)}" data-lang="${esc(c.language)}" aria-label="Pronounce">${speakIcon}</button>
     </div>
-    <div class="wc-translation">${esc(c.translation)}</div>
-    ${c.meaning ? `<div class="wc-meaning">${esc(c.meaning)}</div>` : ""}
-    ${examples ? `<ul class="wc-examples">${examples}</ul>` : ""}`;
+    <ol class="wc-senses${senses.length > 1 ? " numbered" : ""}">${sensesHTML}</ol>`;
 }
 
 document.addEventListener("click", (e) => {
@@ -185,7 +196,7 @@ sb.auth.onAuthStateChange((_event, session) => {
     setTimeout(() => {
       loadCards();
       if (pendingText) {
-        openAddModal();
+        openAddScreen();
         $("#text-input").value = pendingText;
         analyze({ text: pendingText });
         pendingText = null;
@@ -193,6 +204,7 @@ sb.auth.onAuthStateChange((_event, session) => {
     }, 0);
   } else {
     state.cards = [];
+    renderAddScreen(null);
     showView("dict");
   }
 });
@@ -221,6 +233,7 @@ async function saveCard(item) {
     translation: item.translation,
     meaning: item.meaning,
     examples: item.examples || [],
+    senses: item.senses || [],
   };
   const { data, error } = await sb.from("cards").insert(row).select().single();
   if (error) {
@@ -312,49 +325,34 @@ $("#lang-options").addEventListener("click", (e) => {
 });
 onBackdropClick($("#lang-modal"), () => $("#lang-modal").close());
 
-/* ---------- add modal ---------- */
+/* ---------- add screen ---------- */
 
-const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+// The screen and its manual pane are history entries, so the phone's back gesture steps back through them.
+function renderAddScreen(pane) {
+  const screen = $("#add-screen");
+  screen.hidden = !pane;
+  $("#app").inert = !!pane;
+  if (!pane) return;
+  $("#add-pane").hidden = pane !== "add";
+  $("#manual-pane").hidden = pane !== "manual";
+  $("#add-title").textContent = pane === "manual" ? "Manual entry" : "New word";
+  screen.scrollTop = 0;
+}
 
-let closeTimer;
-
-function openAddModal() {
-  const d = $("#add-modal");
-  clearTimeout(closeTimer);
-  d.classList.remove("closing");
+function openAddScreen() {
+  analyzeSeq++; // a lookup still running belongs to the previous visit
   $("#text-input").value = "";
   $("#add-results").innerHTML = "";
+  $("#text-submit").disabled = false;
   setAddStatus("");
-  showAddPane("add");
-  if (!d.open) d.showModal();
+  history.pushState({ add: "add" }, "");
+  renderAddScreen("add");
   $("#text-input").focus({ preventScroll: true });
 }
 
-function closeAddModal() {
-  const d = $("#add-modal");
-  if (!d.open || d.classList.contains("closing")) return;
-  d.classList.add("closing");
-  // A timer rather than animationend: children's animations bubble up, and hidden tabs may never fire it.
-  closeTimer = setTimeout(() => {
-    d.classList.remove("closing");
-    d.close();
-  }, reducedMotion.matches ? 0 : 160);
-}
-
-function showAddPane(name) {
-  $("#add-pane").hidden = name !== "add";
-  $("#manual-pane").hidden = name !== "manual";
-  $("#add-title").textContent = name === "manual" ? "Manual entry" : "New word";
-  $("#add-modal").scrollTop = 0;
-}
-
-$("#fab").addEventListener("click", openAddModal);
-$("#add-close").addEventListener("click", closeAddModal);
-$("#add-modal").addEventListener("cancel", (e) => {
-  e.preventDefault();
-  closeAddModal();
-});
-onBackdropClick($("#add-modal"), closeAddModal);
+window.addEventListener("popstate", (e) => renderAddScreen(e.state?.add ?? null));
+$("#fab").addEventListener("click", openAddScreen);
+$("#add-back").addEventListener("click", () => history.back());
 
 /* ---------- add mode ---------- */
 
@@ -375,7 +373,7 @@ async function analyze(payload) {
   try {
     const studyLanguage = state.studyLang ? langName(state.studyLang) : null;
     const res = await grok({ action: "analyze", studyLanguage, userLanguage: langName(state.userLang), ...payload });
-    if (seq !== analyzeSeq) return; // the modal was reopened meanwhile
+    if (seq !== analyzeSeq) return; // the screen was reopened meanwhile
     if (!res.items?.length) {
       setAddStatus(esc(res.error || "Couldn't find any words. Try again."), "error");
       return;
@@ -385,7 +383,7 @@ async function analyze(payload) {
   } catch (err) {
     if (seq === analyzeSeq) setAddStatus("Error: " + esc(err.message), "error");
   } finally {
-    $("#text-submit").disabled = false;
+    if (seq === analyzeSeq) $("#text-submit").disabled = false;
   }
 }
 
@@ -441,45 +439,60 @@ if (pendingText) history.replaceState(null, "", location.pathname);
 
 /* ---------- manual entry ---------- */
 
-// The first meaning and first example are always there; extra rows can be removed.
-function manualRow(kind, removable) {
+function exampleRow() {
   const el = document.createElement("div");
   el.className = "m-row";
-  el.innerHTML = kind === "meaning"
-    ? `<input type="text" class="m-meaning" placeholder="Meaning in ${esc(langName(state.userLang))}" autocomplete="off" enterkeyhint="next">`
-    : `<div class="m-ex">
-        <input type="text" class="m-ex-text" placeholder="Example" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="next">
-        <input type="text" class="m-ex-ru" placeholder="Example translation" autocomplete="off" enterkeyhint="next">
-      </div>`;
-  if (removable) el.insertAdjacentHTML("beforeend", `<button type="button" class="m-remove" aria-label="Remove">×</button>`);
+  el.innerHTML = `<div class="m-ex">
+      <input type="text" class="m-ex-text" placeholder="Example" aria-label="Example" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="next">
+      <input type="text" class="m-ex-ru" placeholder="Example translation" aria-label="Example translation" autocomplete="off" enterkeyhint="next">
+    </div>
+    <button type="button" class="m-remove" aria-label="Remove example">×</button>`;
+  return el;
+}
+
+// One meaning with its examples. CSS hides the remove button on the last remaining block or example.
+function senseBlock() {
+  const el = document.createElement("div");
+  el.className = "m-sense";
+  const placeholder = `Meaning in ${esc(langName(state.userLang))}`;
+  el.innerHTML = `<div class="m-sense-head">
+      <span class="m-sense-label"></span>
+      <button type="button" class="m-remove" aria-label="Remove meaning">×</button>
+    </div>
+    <input type="text" class="m-meaning" placeholder="${placeholder}" aria-label="${placeholder}" autocomplete="off" enterkeyhint="next">
+    <div class="m-list"></div>
+    <button type="button" class="btn-link m-add m-add-example">+ Add example</button>`;
+  el.querySelector(".m-list").appendChild(exampleRow());
   return el;
 }
 
 function openManual() {
   $("#manual-form").reset();
-  $("#m-meanings").replaceChildren(manualRow("meaning", false));
-  $("#m-examples").replaceChildren(manualRow("example", false));
+  $("#m-senses").replaceChildren(senseBlock());
   const codes = [...new Set([...sections().map((s) => s.code), ...LANGS])];
   $("#m-lang").innerHTML = codes.map((c) => `<option value="${esc(c)}">${esc(langName(c))}</option>`).join("");
   $("#m-lang").value = state.studyLang || state.cards[0]?.language || "en";
   $("#m-word").value = $("#text-input").value.trim();
-  showAddPane("manual");
-  ($("#m-word").value ? $(".m-meaning") : $("#m-word")).focus({ preventScroll: true });
-}
-
-function addManualRow(kind) {
-  const list = kind === "meaning" ? $("#m-meanings") : $("#m-examples");
-  const row = manualRow(kind, true);
-  list.appendChild(row);
-  row.querySelector("input").focus();
+  history.pushState({ add: "manual" }, "");
+  renderAddScreen("manual");
+  ($("#m-word").value ? $("#m-grammar") : $("#m-word")).focus({ preventScroll: true });
 }
 
 $("#manual-open").addEventListener("click", openManual);
-$("#manual-back").addEventListener("click", () => showAddPane("add"));
-$("#m-add-meaning").addEventListener("click", () => addManualRow("meaning"));
-$("#m-add-example").addEventListener("click", () => addManualRow("example"));
+$("#m-add-sense").addEventListener("click", () => {
+  const block = senseBlock();
+  $("#m-senses").appendChild(block);
+  block.querySelector(".m-meaning").focus();
+});
 $("#manual-form").addEventListener("click", (e) => {
-  e.target.closest(".m-remove")?.closest(".m-row").remove();
+  const remove = e.target.closest(".m-remove");
+  if (remove) return remove.closest(".m-row, .m-sense").remove();
+  const add = e.target.closest(".m-add-example");
+  if (add) {
+    const row = exampleRow();
+    add.previousElementSibling.appendChild(row);
+    row.querySelector("input").focus();
+  }
 });
 $("#manual-form").addEventListener("input", (e) => e.target.classList.remove("invalid"));
 // Return moves to the next field instead of submitting a half-filled card.
@@ -491,19 +504,35 @@ $("#manual-form").addEventListener("keydown", (e) => {
   next ? next.focus() : e.target.blur();
 });
 
+// Reads the blocks, skipping untouched ones. Returns the field to fix when a block is only half filled.
+function readSenses() {
+  const senses = [];
+  for (const block of $$(".m-sense")) {
+    const input = block.querySelector(".m-meaning");
+    const meaning = input.value.trim();
+    const examples = [];
+    for (const row of block.querySelectorAll(".m-ex")) {
+      const textInput = row.querySelector(".m-ex-text");
+      const text = textInput.value.trim();
+      const ru = row.querySelector(".m-ex-ru").value.trim();
+      if (text) examples.push({ text, ru });
+      else if (ru) return { missing: textInput, message: "Enter the example for this translation" };
+    }
+    if (!meaning && examples.length) return { missing: input, message: "Enter the meaning for this example" };
+    if (meaning) senses.push({ meaning, examples });
+  }
+  return senses.length ? { senses } : { missing: $(".m-meaning"), message: "Enter at least one meaning" };
+}
+
 $("#manual-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const word = $("#m-word").value.trim();
-  const meanings = $$(".m-meaning").map((i) => i.value.trim()).filter(Boolean);
-  const missing = !word ? $("#m-word") : !meanings.length ? $(".m-meaning") : null;
+  const { senses, missing, message } = word ? readSenses() : { missing: $("#m-word"), message: "Enter a word" };
   if (missing) {
     missing.classList.add("invalid");
     missing.focus();
-    return toast(word ? "Enter at least one meaning" : "Enter a word");
+    return toast(message);
   }
-  const examples = $$(".m-ex")
-    .map((ex) => ({ text: ex.querySelector(".m-ex-text").value.trim(), ru: ex.querySelector(".m-ex-ru").value.trim() }))
-    .filter((ex) => ex.text);
   const language = $("#m-lang").value;
   const btn = $("#manual-submit");
   btn.disabled = true;
@@ -512,11 +541,13 @@ $("#manual-form").addEventListener("submit", async (e) => {
       word,
       language,
       language_name: langName(language),
-      translation: meanings.join(", "),
-      examples,
+      part_of_speech: $("#m-grammar").value.trim() || null,
+      translation: senses.map((s) => s.meaning).join("; "),
+      examples: senses.flatMap((s) => s.examples),
+      senses,
     });
     if (r.duplicate) return toast("This word is already in your dictionary");
-    closeAddModal();
+    history.go(-2); // back past the manual pane and the lookup pane
     if (!state.studyLang || state.studyLang === normLang(language)) toast(`“${word}” added to your dictionary`);
   } catch (err) {
     toast("Couldn't save: " + err.message);
@@ -781,29 +812,79 @@ function renderDict() {
 
 $("#dict-search").addEventListener("input", renderDict);
 
-$("#dict-list").addEventListener("click", async (e) => {
+$("#dict-list").addEventListener("click", (e) => {
   const item = e.target.closest(".dict-item");
-  if (!item) return;
-  const card = state.cards.find((c) => c.id === item.dataset.id);
+  if (item) openSheet(state.cards.find((c) => c.id === item.dataset.id));
+});
 
-  if (e.target.closest(".btn-del")) {
-    if (!confirm(`Delete “${card.word}” from your dictionary?`)) return;
-    const { error } = await sb.from("cards").delete().eq("id", card.id);
-    if (error) return toast("Couldn't delete: " + error.message);
-    state.cards = state.cards.filter((c) => c.id !== card.id);
-    renderAll();
-    return;
-  }
-  if (!e.target.closest(".dict-row")) return;
+/* ---------- word card sheet ---------- */
 
-  const open = item.querySelector(".dict-detail");
-  $$(".dict-detail").forEach((d) => d.remove());
-  if (open) return;
-  const detail = document.createElement("div");
-  detail.className = "dict-detail";
-  detail.innerHTML = `<div class="word-card">${wordCardHTML(card)}</div>
-    <button class="btn btn-del" type="button">Delete</button>`;
-  item.appendChild(detail);
+const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+const sheet = $("#card-sheet");
+let sheetCardId = null;
+
+function openSheet(card) {
+  sheetCardId = card.id;
+  $("#sheet-card").innerHTML = wordCardHTML(card);
+  sheet.showModal();
+  sheet.querySelector(".sheet-scroll").scrollTop = 0;
+}
+
+function closeSheet() {
+  if (!sheet.open || sheet.classList.contains("closing")) return;
+  sheet.classList.add("closing");
+  // A timer rather than animationend: children's animations bubble up, and hidden tabs may never fire it.
+  setTimeout(() => {
+    sheet.classList.remove("closing");
+    sheet.style.transform = "";
+    sheet.close();
+  }, reducedMotion.matches ? 0 : 200);
+}
+
+sheet.addEventListener("cancel", (e) => {
+  e.preventDefault();
+  closeSheet();
+});
+onBackdropClick(sheet, closeSheet);
+
+// Drag the grip down to dismiss; a plain tap on it closes too.
+const SHEET_DISMISS_PX = 80;
+const grip = $("#sheet-grip");
+let dragStartY = null;
+let dragDistance = 0;
+
+grip.addEventListener("pointerdown", (e) => {
+  dragStartY = e.clientY;
+  dragDistance = 0;
+  grip.setPointerCapture(e.pointerId);
+  sheet.classList.add("dragging");
+});
+grip.addEventListener("pointermove", (e) => {
+  if (dragStartY === null) return;
+  dragDistance = Math.max(0, e.clientY - dragStartY);
+  sheet.style.transform = `translateY(${dragDistance}px)`;
+});
+function endDrag() {
+  if (dragStartY === null) return;
+  dragStartY = null;
+  sheet.classList.remove("dragging");
+  if (dragDistance > SHEET_DISMISS_PX) closeSheet();
+  else sheet.style.transform = "";
+}
+grip.addEventListener("pointerup", endDrag);
+grip.addEventListener("pointercancel", endDrag);
+grip.addEventListener("click", () => {
+  if (dragDistance < 5) closeSheet();
+});
+
+$("#sheet-delete").addEventListener("click", async () => {
+  const card = state.cards.find((c) => c.id === sheetCardId);
+  if (!confirm(`Delete “${card.word}” from your dictionary?`)) return;
+  const { error } = await sb.from("cards").delete().eq("id", card.id);
+  if (error) return toast("Couldn't delete: " + error.message);
+  state.cards = state.cards.filter((c) => c.id !== card.id);
+  renderAll();
+  closeSheet();
 });
 
 /* ---------- profile ---------- */
