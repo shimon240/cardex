@@ -1,15 +1,15 @@
 # Cardex
 
-Мобильное веб-приложение для изучения иностранных слов.
+A mobile web app for learning foreign words.
 
-- **Словарь** — стартовый экран: все сохранённые слова с прогрессом.
-- **Добавить** — круглая кнопка «+» справа внизу открывает окно: впиши слово, Grok 4.20 вернёт перевод, транскрипцию, объяснение и примеры. Или «Заполнить вручную»: слово, одно или несколько значений и примеры, без запроса к Grok. Окно закрывается крестиком или тапом по фону.
-- **Учить** — карточки по системе Лейтнера. Язык карточек: на русском, на языке раздела (например, «На немецком») или вперемешку. Ответ проверяется локально, а неточные варианты оценивает Grok.
-- **Профиль** — email аккаунта, смена пароля и выход.
-- **Разделы по языкам** — выпадающий список справа вверху, всегда выбран один язык. Раздел появляется сам, когда добавляешь первое слово на новом языке (язык определяет Grok); «+ Добавить язык…» создаёт раздел заранее. Выбранный раздел запоминается, тренировка и словарь показывают только его слова, а русские слова переводятся на его язык.
+- **Dictionary**: the start screen, with all saved words and their progress.
+- **Add**: the round "+" button at the bottom right opens a sheet. Type a word and Grok 4.20 returns its translation, transcription, explanation and examples. Or choose "Fill in manually" to enter a word, one or more meanings and examples without calling Grok. Close the sheet with the X or by tapping the backdrop.
+- **Learn**: flashcards using the Leitner system. Card language: in your language, in the section's language (for example, "In German"), or mixed. Answers are checked locally, and Grok judges inexact ones.
+- **Profile**: account email, your language, password change and sign out. Your language is the one Grok writes translations, explanations and answer feedback in; it applies to new cards, and existing ones stay as they are. The choice is stored in the browser.
+- **Language sections**: a dropdown at the top right, with one language always selected. A section appears on its own when you add the first word in a new language (Grok detects the language); "+ Add language…" creates one ahead of time. The selected section is remembered, training and the dictionary show only its words, and words in your language are translated into its language. In a section for your own language, words get a card of their own with synonyms and a definition.
 
-## Устройство
+## How it works
 
-- Фронтенд: статические `index.html`, `app.js`, `styles.css` (без сборки), хостинг на GitHub Pages. Pages кэширует файлы на 10 минут, поэтому при изменении `app.js` или `styles.css` поднимай `?v=N` в их ссылках в `index.html`, иначе браузер соберёт новую страницу со старым скриптом.
-- Данные: Supabase, таблица `public.cards` с RLS (каждый видит только свои карточки).
-- Grok: edge-функция `supabase/functions/grok`. Ключ xAI хранится в Supabase Vault (`xai_api_key`) и читается только сервисной ролью через `public.get_xai_key()`.
+- Frontend: static `index.html`, `app.js`, `styles.css` (no build step), hosted on GitHub Pages. Pages caches files for 10 minutes, so when you change `app.js` or `styles.css`, bump `?v=N` in their links in `index.html`, otherwise the browser combines the new page with the old script.
+- Data: Supabase, table `public.cards` with RLS (each user sees only their own cards).
+- Grok: edge function `supabase/functions/grok`. The xAI key is stored in Supabase Vault (`xai_api_key`) and read only by the service role through `public.get_xai_key()`.

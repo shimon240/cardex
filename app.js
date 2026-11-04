@@ -7,23 +7,9 @@ const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
-// Languages offered when creating a section by hand; sections for any other
+// Languages offered for the user's own language and when creating a section by hand; sections for any other
 // language appear on their own once Grok returns a word in it.
-const LANGS = [
-  { code: "en", label: "English", ru: "английский" },
-  { code: "de", label: "Deutsch", ru: "немецкий" },
-  { code: "fr", label: "Français", ru: "французский" },
-  { code: "es", label: "Español", ru: "испанский" },
-  { code: "it", label: "Italiano", ru: "итальянский" },
-  { code: "pt", label: "Português", ru: "португальский" },
-  { code: "he", label: "עברית", ru: "иврит" },
-  { code: "pl", label: "Polski", ru: "польский" },
-  { code: "zh", label: "中文", ru: "китайский" },
-  { code: "ja", label: "日本語", ru: "японский" },
-  { code: "ko", label: "한국어", ru: "корейский" },
-  { code: "tr", label: "Türkçe", ru: "турецкий" },
-  { code: "nl", label: "Nederlands", ru: "нидерландский" },
-];
+const LANGS = ["en", "ru", "de", "fr", "es", "it", "pt", "he", "pl", "zh", "ja", "ko", "tr", "nl"];
 
 // Leitner boxes: days until the next review after a correct answer from box N.
 const INTERVAL_DAYS = [0, 1, 2, 4, 8, 16, 32, 64];
@@ -35,12 +21,15 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
 };
 
+// "from_ru", "to_ru" and an example's "ru" key are the names saved settings and cards
+// already use; they mean "the user's language", state.userLang.
 const state = {
   user: null,
   cards: [],
   studyLang: store.get("cardex.lang", null),        // current section; null only until cards first load
   extraLangs: store.get("cardex.extraLangs", []),   // sections created by hand, maybe still empty
   direction: store.get("cardex.dir", "from_ru"),
+  userLang: store.get("cardex.userLang", "en"),     // the language Grok writes cards and feedback in
   session: null,
 };
 
@@ -73,20 +62,13 @@ function normLang(code) {
   return String(code || "").toLowerCase().split(/[-_]/)[0] || "und";
 }
 
-// Russian name of a language, capitalized: "Немецкий".
+const languageNames = new Intl.DisplayNames(["en"], { type: "language" });
+
+// English name of a language: "de" → "German". Works for any code, including
+// old cards whose stored language_name is still in Russian.
 function langName(code) {
   if (!code) return "";
-  const ru = LANGS.find((l) => l.code === code)?.ru ?? state.cards.find((c) => c.language === code)?.language_name ?? code;
-  return ru.charAt(0).toUpperCase() + ru.slice(1);
-}
-
-// Locative form for "На немецком", "На иврите".
-function langLocative(code) {
-  const name = langName(code).toLowerCase();
-  if (/(ий|ый|ой)$/.test(name)) return name.slice(0, -2) + "ом";
-  if (/ь$/.test(name)) return name.slice(0, -1) + "и";
-  if (/[бвгджзклмнпрстфхцчшщ]$/.test(name)) return name + "е";
-  return name;
+  try { return languageNames.of(code); } catch { return code; }
 }
 
 async function grok(body) {
@@ -111,7 +93,7 @@ function onBackdropClick(dialog, close) {
 /* ---------- word card rendering ---------- */
 
 function wordCardHTML(c) {
-  const meta = [c.part_of_speech, c.language_name || langName(normLang(c.language)).toLowerCase()].filter(Boolean).map(esc).join(" · ");
+  const meta = [c.part_of_speech, langName(normLang(c.language))].filter(Boolean).map(esc).join(" · ");
   const ipa = c.transcription ? `<span class="ipa">[${esc(c.transcription)}]</span> · ` : "";
   const examples = (c.examples || [])
     .map((e) => `<li><div class="ex">${esc(e.text)}</div><div class="ex-ru">${esc(e.ru)}</div></li>`)
@@ -122,7 +104,7 @@ function wordCardHTML(c) {
         <div class="wc-word">${esc(c.word)}</div>
         <div class="wc-meta">${ipa}${meta}</div>
       </div>
-      <button class="speak" type="button" data-speak="${esc(c.word)}" data-lang="${esc(c.language)}" aria-label="Произнести">${speakIcon}</button>
+      <button class="speak" type="button" data-speak="${esc(c.word)}" data-lang="${esc(c.language)}" aria-label="Pronounce">${speakIcon}</button>
     </div>
     <div class="wc-translation">${esc(c.translation)}</div>
     ${c.meaning ? `<div class="wc-meaning">${esc(c.meaning)}</div>` : ""}
@@ -140,8 +122,8 @@ let signUpMode = false;
 
 function setAuthMode(signUp) {
   signUpMode = signUp;
-  $("#auth-submit").textContent = signUp ? "Создать аккаунт" : "Войти";
-  $("#auth-toggle").textContent = signUp ? "Уже есть аккаунт? Войти" : "Нет аккаунта? Создать";
+  $("#auth-submit").textContent = signUp ? "Create account" : "Sign in";
+  $("#auth-toggle").textContent = signUp ? "Already have an account? Sign in" : "No account? Create one";
   $("#auth-password").autocomplete = signUp ? "new-password" : "current-password";
   authMsg("");
 }
@@ -170,7 +152,7 @@ $("#auth-form").addEventListener("submit", async (e) => {
       if (error) throw error;
       if (!data.session) {
         setAuthMode(false);
-        authMsg("Готово! Подтверди адрес по ссылке из письма, потом войди.");
+        authMsg("Almost done! Confirm your address using the link in the email, then sign in.");
       }
     } else {
       const { error } = await sb.auth.signInWithPassword({ email, password });
@@ -178,9 +160,9 @@ $("#auth-form").addEventListener("submit", async (e) => {
     }
   } catch (err) {
     const map = {
-      "Invalid login credentials": "Неверный email или пароль",
-      "Email not confirmed": "Email ещё не подтверждён — проверь почту",
-      "User already registered": "Такой пользователь уже есть — войди",
+      "Invalid login credentials": "Wrong email or password",
+      "Email not confirmed": "Email not confirmed yet. Check your inbox.",
+      "User already registered": "This user already exists. Sign in instead.",
     };
     authMsg(map[err.message] ?? err.message, true);
   } finally {
@@ -219,7 +201,7 @@ sb.auth.onAuthStateChange((_event, session) => {
 
 async function loadCards() {
   const { data, error } = await sb.from("cards").select("*").order("created_at", { ascending: false });
-  if (error) return toast("Не удалось загрузить словарь: " + error.message);
+  if (error) return toast("Couldn't load the dictionary: " + error.message);
   state.cards = data;
   // There is no "all languages" view: start in the language of the newest word.
   if (!state.studyLang) {
@@ -247,7 +229,7 @@ async function saveCard(item) {
   }
   state.cards.unshift(data);
   renderAll();
-  if (state.studyLang && data.language !== state.studyLang) toast(`Добавлено в раздел «${langName(data.language)}»`);
+  if (state.studyLang && data.language !== state.studyLang) toast(`Added to ${langName(data.language)}`);
   return { card: data };
 }
 
@@ -286,7 +268,7 @@ function renderSections() {
   const opt = (code, label, count) => `<option value="${esc(code ?? "")}">${esc(label)} · ${count}</option>`;
   $("#section-select").innerHTML =
     sections().map((s) => opt(s.code, langName(s.code), s.count)).join("") +
-    `<option value="+">+ Добавить язык…</option>`;
+    `<option value="+">+ Add language…</option>`;
   $("#section-select").value = state.studyLang ?? "";
   $("#section-label").textContent = langName(state.studyLang);
 }
@@ -308,13 +290,13 @@ $("#section-select").addEventListener("change", (e) => {
   e.target.value = state.studyLang ?? "";
   if (code === "+") {
     const taken = new Set(sections().map((s) => s.code));
-    $("#lang-options").innerHTML = LANGS.filter((l) => !taken.has(l.code))
-      .map((l) => `<button type="button" data-code="${l.code}">${esc(langName(l.code))}</button>`)
+    $("#lang-options").innerHTML = LANGS.filter((code) => !taken.has(code))
+      .map((code) => `<button type="button" data-code="${code}">${esc(langName(code))}</button>`)
       .join("");
     $("#lang-modal").showModal();
     return;
   }
-  if (state.session) return toast("Сначала закончи тренировку");
+  if (state.session) return toast("Finish the training round first");
   selectSection(code);
 });
 
@@ -362,7 +344,7 @@ function closeAddModal() {
 function showAddPane(name) {
   $("#add-pane").hidden = name !== "add";
   $("#manual-pane").hidden = name !== "manual";
-  $("#add-title").textContent = name === "manual" ? "Вручную" : "Новое слово";
+  $("#add-title").textContent = name === "manual" ? "Manual entry" : "New word";
   $("#add-modal").scrollTop = 0;
 }
 
@@ -388,20 +370,20 @@ function setAddStatus(html, kind = "") {
 async function analyze(payload) {
   const seq = ++analyzeSeq;
   $("#add-results").innerHTML = "";
-  setAddStatus(`<div class="spinner"></div><span>Грок думает…</span>`);
+  setAddStatus(`<div class="spinner"></div><span>Grok is thinking…</span>`);
   $("#text-submit").disabled = true;
   try {
-    const studyLanguage = state.studyLang ? langName(state.studyLang).toLowerCase() : null;
-    const res = await grok({ action: "analyze", studyLanguage, ...payload });
+    const studyLanguage = state.studyLang ? langName(state.studyLang) : null;
+    const res = await grok({ action: "analyze", studyLanguage, userLanguage: langName(state.userLang), ...payload });
     if (seq !== analyzeSeq) return; // the modal was reopened meanwhile
     if (!res.items?.length) {
-      setAddStatus(esc(res.error || "Не нашёл иностранных слов. Попробуй ещё раз."), "error");
+      setAddStatus(esc(res.error || "Couldn't find any words. Try again."), "error");
       return;
     }
     setAddStatus("");
     renderResults(res.items);
   } catch (err) {
-    if (seq === analyzeSeq) setAddStatus("Ошибка: " + esc(err.message), "error");
+    if (seq === analyzeSeq) setAddStatus("Error: " + esc(err.message), "error");
   } finally {
     $("#text-submit").disabled = false;
   }
@@ -416,7 +398,7 @@ function renderResults(items) {
     el.className = "word-card";
     el.innerHTML = `${wordCardHTML(item)}
       <div class="wc-actions">
-        <button class="btn ${exists ? "added" : "btn-primary"}" type="button" ${exists ? "disabled" : ""}>${exists ? "Уже в словаре" : "Добавить в словарь"}</button>
+        <button class="btn ${exists ? "added" : "btn-primary"}" type="button" ${exists ? "disabled" : ""}>${exists ? "Already in dictionary" : "Add to dictionary"}</button>
       </div>`;
     const btn = el.querySelector(".wc-actions .btn");
     btn.addEventListener("click", async () => {
@@ -424,10 +406,10 @@ function renderResults(items) {
       try {
         const r = await saveCard(item);
         btn.className = "btn added";
-        btn.textContent = r.duplicate ? "Уже в словаре" : "Добавлено ✓";
+        btn.textContent = r.duplicate ? "Already in dictionary" : "Added ✓";
       } catch (err) {
         btn.disabled = false;
-        toast("Не сохранилось: " + err.message);
+        toast("Couldn't save: " + err.message);
       }
     });
     wrap.appendChild(el);
@@ -464,12 +446,12 @@ function manualRow(kind, removable) {
   const el = document.createElement("div");
   el.className = "m-row";
   el.innerHTML = kind === "meaning"
-    ? `<input type="text" class="m-meaning" placeholder="Перевод на русский" autocomplete="off" enterkeyhint="next">`
+    ? `<input type="text" class="m-meaning" placeholder="Meaning in ${esc(langName(state.userLang))}" autocomplete="off" enterkeyhint="next">`
     : `<div class="m-ex">
-        <input type="text" class="m-ex-text" placeholder="Пример" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="next">
-        <input type="text" class="m-ex-ru" placeholder="Перевод примера" autocomplete="off" enterkeyhint="next">
+        <input type="text" class="m-ex-text" placeholder="Example" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="next">
+        <input type="text" class="m-ex-ru" placeholder="Example translation" autocomplete="off" enterkeyhint="next">
       </div>`;
-  if (removable) el.insertAdjacentHTML("beforeend", `<button type="button" class="m-remove" aria-label="Убрать">×</button>`);
+  if (removable) el.insertAdjacentHTML("beforeend", `<button type="button" class="m-remove" aria-label="Remove">×</button>`);
   return el;
 }
 
@@ -477,7 +459,7 @@ function openManual() {
   $("#manual-form").reset();
   $("#m-meanings").replaceChildren(manualRow("meaning", false));
   $("#m-examples").replaceChildren(manualRow("example", false));
-  const codes = [...new Set([...sections().map((s) => s.code), ...LANGS.map((l) => l.code)])];
+  const codes = [...new Set([...sections().map((s) => s.code), ...LANGS])];
   $("#m-lang").innerHTML = codes.map((c) => `<option value="${esc(c)}">${esc(langName(c))}</option>`).join("");
   $("#m-lang").value = state.studyLang || state.cards[0]?.language || "en";
   $("#m-word").value = $("#text-input").value.trim();
@@ -517,7 +499,7 @@ $("#manual-form").addEventListener("submit", async (e) => {
   if (missing) {
     missing.classList.add("invalid");
     missing.focus();
-    return toast(word ? "Впиши хотя бы одно значение" : "Впиши слово");
+    return toast(word ? "Enter at least one meaning" : "Enter a word");
   }
   const examples = $$(".m-ex")
     .map((ex) => ({ text: ex.querySelector(".m-ex-text").value.trim(), ru: ex.querySelector(".m-ex-ru").value.trim() }))
@@ -529,15 +511,15 @@ $("#manual-form").addEventListener("submit", async (e) => {
     const r = await saveCard({
       word,
       language,
-      language_name: langName(language).toLowerCase(),
+      language_name: langName(language),
       translation: meanings.join(", "),
       examples,
     });
-    if (r.duplicate) return toast("Это слово уже в словаре");
+    if (r.duplicate) return toast("This word is already in your dictionary");
     closeAddModal();
-    if (!state.studyLang || state.studyLang === normLang(language)) toast(`«${word}» в словаре`);
+    if (!state.studyLang || state.studyLang === normLang(language)) toast(`“${word}” added to your dictionary`);
   } catch (err) {
-    toast("Не сохранилось: " + err.message);
+    toast("Couldn't save: " + err.message);
   } finally {
     btn.disabled = false;
   }
@@ -561,20 +543,22 @@ function renderLearnStart() {
   $("#stat-total").textContent = pool.length;
   $("#stat-learned").textContent = pool.filter((c) => c.box >= LEARNED_BOX).length;
   $$("#direction button").forEach((b) => b.classList.toggle("active", b.dataset.dir === state.direction));
-  $('#direction [data-dir="to_ru"]').textContent = `На ${langLocative(state.studyLang)}`;
+  // A section in the user's own language has no translation side, so its other side is the meaning.
+  $('#direction [data-dir="from_ru"]').textContent = state.studyLang === state.userLang ? "Meaning" : `In ${langName(state.userLang)}`;
+  $('#direction [data-dir="to_ru"]').textContent = `In ${langName(state.studyLang)}`;
 
   const go = $("#learn-go");
   const note = $("#learn-note");
   go.disabled = pool.length === 0;
   if (!pool.length) {
-    go.textContent = "Начать";
-    note.textContent = `В разделе «${langName(state.studyLang)}» пока нет слов.`;
+    go.textContent = "Start";
+    note.textContent = `No ${langName(state.studyLang)} words yet.`;
   } else if (due.length) {
-    go.textContent = "Начать";
+    go.textContent = "Start";
     note.textContent = "";
   } else {
-    go.textContent = "Повторить всё равно";
-    note.textContent = "На сегодня всё повторено. Можно пройтись по случайным словам.";
+    go.textContent = "Review anyway";
+    note.textContent = "All caught up for today. You can still go through some random words.";
   }
 }
 
@@ -615,7 +599,7 @@ function endSession() {
   $("#learn-session").hidden = true;
   if (s && s.index > 0) {
     $("#learn-done").hidden = false;
-    $("#done-summary").textContent = `Правильно ${s.correct} из ${s.index}.`;
+    $("#done-summary").textContent = `${s.correct} of ${s.index} correct.`;
   } else {
     $("#learn-start").hidden = false;
     renderLearnStart();
@@ -632,19 +616,20 @@ function nextQuestion() {
   $("#progress-bar").style.width = `${(s.index / s.queue.length) * 100}%`;
   $("#session-count").textContent = `${s.index + 1} / ${s.queue.length}`;
 
-  const lang = card.language_name || langName(card.language).toLowerCase();
+  const lang = langName(card.language);
+  const base = card.language === state.userLang ? "Meaning" : langName(state.userLang);
   if (dir === "from_ru") {
-    $("#quiz-tag").textContent = `Рус → ${lang}`;
+    $("#quiz-tag").textContent = `${base} → ${lang}`;
     $("#quiz-prompt").textContent = card.translation;
     $("#quiz-sub").textContent = card.part_of_speech || "";
-    $("#quiz-input").placeholder = `Как это на языке: ${lang}?`;
-    // Hint: the Russian explanation, or the first example's translation.
+    $("#quiz-input").placeholder = `How do you say it in ${lang}?`;
+    // Hint: the explanation, or the first example's translation.
     $("#quiz-hint").textContent = card.meaning || card.examples?.[0]?.ru || "";
   } else {
-    $("#quiz-tag").textContent = `${lang} → рус`;
+    $("#quiz-tag").textContent = `${lang} → ${base}`;
     $("#quiz-prompt").textContent = card.word;
     $("#quiz-sub").textContent = [card.transcription && `[${card.transcription}]`, card.part_of_speech].filter(Boolean).join(" · ");
-    $("#quiz-input").placeholder = "Перевод на русский";
+    $("#quiz-input").placeholder = "What does it mean?";
     $("#quiz-hint").textContent = card.examples?.[0]?.text || "";
   }
   $("#quiz-hint").hidden = true;
@@ -660,7 +645,7 @@ function nextQuestion() {
   $("#quiz-input").value = "";
   $("#quiz-check").disabled = false;
   $("#quiz-skip").disabled = false;
-  $("#quiz-check").textContent = "Проверить";
+  $("#quiz-check").textContent = "Check";
   $("#quiz-input").focus({ preventScroll: true });
 }
 
@@ -692,15 +677,16 @@ async function checkAnswer(answer) {
   try {
     const res = await grok({
       action: "check",
+      userLanguage: langName(state.userLang),
       direction: dir,
-      language: card.language_name || card.language,
+      language: langName(card.language),
       prompt: dir === "from_ru" ? card.translation : card.word,
       expected: dir === "from_ru" ? card.word : card.translation,
       answer,
     });
     showResult(res.correct, answer, res.feedback);
   } catch (err) {
-    toast("Грок не ответил, сверяю по словарю");
+    toast("Grok didn't respond, checking against the dictionary");
     showResult(false, answer, "");
   }
 }
@@ -714,8 +700,8 @@ function showResult(correct, answer, feedback) {
 
   const v = $("#verdict");
   v.className = "verdict " + (correct ? "good" : "bad");
-  const yours = answer && !correct ? `<span class="yours">Твой ответ: ${esc(answer)}</span>` : "";
-  v.innerHTML = `${correct ? "Верно!" : answer ? "Не совсем" : "Запомни"}${yours}${feedback ? `<span class="fb">${esc(feedback)}</span>` : ""}`;
+  const yours = answer && !correct ? `<span class="yours">Your answer: ${esc(answer)}</span>` : "";
+  v.innerHTML = `${correct ? "Correct!" : answer ? "Not quite" : "Remember this one"}${yours}${feedback ? `<span class="fb">${esc(feedback)}</span>` : ""}`;
   $("#answer-card").innerHTML = `<div class="word-card">${wordCardHTML(cur.card)}</div>`;
   $("#quiz-override").hidden = correct || !answer;
   $("#quiz-next").focus({ preventScroll: true });
@@ -739,7 +725,7 @@ async function grade(card, correct) {
   Object.assign(card, patch);
   if (correct) state.session.correct++;
   const { error } = await sb.from("cards").update(patch).eq("id", card.id);
-  if (error) toast("Прогресс не сохранился: " + error.message);
+  if (error) toast("Progress wasn't saved: " + error.message);
 }
 
 $("#quiz-form").addEventListener("submit", (e) => {
@@ -761,7 +747,7 @@ $("#quiz-override").addEventListener("click", () => {
   $("#quiz-override").hidden = true;
   const v = $("#verdict");
   v.className = "verdict good";
-  v.textContent = "Засчитано";
+  v.textContent = "Counted as correct";
   grade(cur.card, true);
 });
 $("#learn-go").addEventListener("click", startSession);
@@ -780,14 +766,14 @@ function renderDict() {
   const list = pool.filter((c) => !q || norm(c.word).includes(q) || norm(c.translation).includes(q));
   $("#dict-empty").hidden = pool.length > 0;
   $("#dict-empty").textContent = state.cards.length
-    ? `В разделе «${langName(state.studyLang)}» пока нет слов.`
-    : "Пока пусто. Нажми «+», чтобы добавить первое слово.";
+    ? `No ${langName(state.studyLang)} words yet.`
+    : "Nothing here yet. Tap + to add your first word.";
   $("#dict-list").innerHTML = list.map((c) => {
     const boxes = Array.from({ length: LEARNED_BOX }, (_, i) => `<i class="${i < c.box ? "on" : ""}"></i>`).join("");
     return `<div class="dict-item" data-id="${c.id}">
       <button class="dict-row" type="button">
         <div class="dw"><div class="dw-word">${esc(c.word)}</div><div class="dw-tr">${esc(c.translation)}</div></div>
-        <div class="boxes" title="Прогресс">${boxes}</div>
+        <div class="boxes" title="Progress">${boxes}</div>
       </button>
     </div>`;
   }).join("");
@@ -801,9 +787,9 @@ $("#dict-list").addEventListener("click", async (e) => {
   const card = state.cards.find((c) => c.id === item.dataset.id);
 
   if (e.target.closest(".btn-del")) {
-    if (!confirm(`Удалить «${card.word}» из словаря?`)) return;
+    if (!confirm(`Delete “${card.word}” from your dictionary?`)) return;
     const { error } = await sb.from("cards").delete().eq("id", card.id);
-    if (error) return toast("Не удалилось: " + error.message);
+    if (error) return toast("Couldn't delete: " + error.message);
     state.cards = state.cards.filter((c) => c.id !== card.id);
     renderAll();
     return;
@@ -816,11 +802,19 @@ $("#dict-list").addEventListener("click", async (e) => {
   const detail = document.createElement("div");
   detail.className = "dict-detail";
   detail.innerHTML = `<div class="word-card">${wordCardHTML(card)}</div>
-    <button class="btn btn-del" type="button">Удалить</button>`;
+    <button class="btn btn-del" type="button">Delete</button>`;
   item.appendChild(detail);
 });
 
 /* ---------- profile ---------- */
+
+$("#user-lang").innerHTML = LANGS.map((code) => `<option value="${code}">${esc(langName(code))}</option>`).join("");
+$("#user-lang").value = state.userLang;
+$("#user-lang").addEventListener("change", (e) => {
+  state.userLang = e.target.value;
+  store.set("cardex.userLang", state.userLang);
+  renderAll();
+});
 
 $("#password-form").addEventListener("input", (e) => e.target.classList.remove("invalid"));
 
@@ -831,12 +825,12 @@ $("#password-form").addEventListener("submit", async (e) => {
   if (pw.length < 6) {
     $("#pw-new").classList.add("invalid");
     $("#pw-new").focus();
-    return toast("Пароль — минимум 6 символов");
+    return toast("Password must be at least 6 characters");
   }
   if (repeat !== pw) {
     $("#pw-repeat").classList.add("invalid");
     $("#pw-repeat").focus();
-    return toast("Пароли не совпадают");
+    return toast("Passwords don't match");
   }
   const btn = $("#pw-submit");
   btn.disabled = true;
@@ -845,12 +839,9 @@ $("#password-form").addEventListener("submit", async (e) => {
     if (error) throw error;
     $("#password-form").reset();
     $("#pw-email").value = state.user?.email ?? "";
-    toast("Пароль изменён");
+    toast("Password changed");
   } catch (err) {
-    const map = {
-      "New password should be different from the old password.": "Новый пароль совпадает со старым",
-    };
-    toast(map[err.message] ?? "Не получилось: " + err.message);
+    toast("Couldn't change password: " + err.message);
   } finally {
     btn.disabled = false;
   }

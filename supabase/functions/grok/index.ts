@@ -28,30 +28,35 @@ async function xaiKey(): Promise<string> {
   return cachedKey;
 }
 
-const ANALYZE_SYSTEM = `Ты — помощник для изучения иностранных слов. Пользователь говорит по-русски.
-По входу (слово или текст, либо фотография — обычно обрезанная пользователем до нужного слова) составь словарные карточки.
-Отвечай строго JSON-объектом без пояснений:
+const analyzeSystem = (lang: string) => `You are an assistant for learning foreign words. The user speaks ${lang}.
+From the input (a word or text, or a photo, usually cropped by the user to the word they want) build dictionary cards.
+Reply strictly with a JSON object and no commentary:
 {"items":[{
-  "word": "слово в словарной форме (существительные в ед. ч., глаголы в инфинитиве; для немецких существительных с артиклем der/die/das; если на входе устойчивое выражение — оставь выражение)",
-  "language": "код языка BCP-47, например en, de, fr, es, it",
-  "language_name": "название языка по-русски, со строчной буквы",
-  "transcription": "транскрипция IPA без слешей",
-  "part_of_speech": "часть речи по-русски, коротко (сущ., глаг., прил., нареч., выраж. и т. п.)",
-  "translation": "краткий перевод на русский: 1–3 основных варианта через запятую",
-  "meaning": "1–2 предложения по-русски: значение, оттенки, когда употребляется",
-  "examples": [{"text": "естественный пример на языке слова", "ru": "перевод примера"}]
+  "word": "the word in dictionary form (nouns in the singular, verbs in the infinitive; German nouns with the article der/die/das; if the input is a set phrase, keep the phrase)",
+  "language": "BCP-47 language code, for example en, de, fr, es, it",
+  "language_name": "the language's name in English, capitalized",
+  "transcription": "IPA transcription without slashes",
+  "part_of_speech": "part of speech in ${lang}, abbreviated",
+  "translation": "short translation into ${lang}: 1–3 main options, comma-separated (for a word in ${lang} itself: 1–3 synonyms)",
+  "meaning": "1–2 sentences in ${lang}: the meaning, its nuances, when it is used",
+  "examples": [{"text": "a natural example in the word's language", "ru": "translation of the example into ${lang} (for a word in ${lang} itself: a plain paraphrase)"}]
 }],
 "error": null}
-Давай ровно 3 примера разной сложности.
-Если на входе слово на русском — переведи его на изучаемый язык (если он указан, иначе на английский) и сделай карточку для иностранного слова.
-Если слово написано с опечаткой — исправь.
-Если на входе (или на фото) одно слово или короткая устойчивая фраза — верни только её. Если это предложение или больше — верни до 5 самых полезных и не самых простых слов. Если слово на фото обрезано краем — восстанови его по видимой части. Русский текст игнорируй.
-Если не удалось найти иностранное слово — верни {"items":[],"error":"короткое объяснение по-русски"}.`;
+Give exactly 3 examples of varying difficulty.
+If the input is a word in ${lang} and a study language other than ${lang} is specified, translate it into the study language and build the card for the foreign word. If the study language is ${lang} or not specified, build the card for the word itself.
+If the word has a typo, correct it.
+If the input (or photo) is one word or a short set phrase, return only that. If it is a sentence or longer, return up to 5 of the most useful, not the simplest, words. If a word in the photo is cut off by the edge, restore it from the visible part. Ignore text in ${lang} unless the study language is ${lang}.
+If no suitable word can be found, return {"items":[],"error":"a short explanation in ${lang}"}.`;
 
-const CHECK_SYSTEM = `Ты проверяешь ответ ученика в тренажёре слов. Ученик говорит по-русски.
-Оцени, правильно ли он перевёл слово. Засчитывай синонимы и близкие по смыслу варианты, мелкие опечатки, другую форму слова. Отсутствие артикля у немецкого существительного засчитывай, но упомяни артикль.
-Не засчитывай слово с другим значением.
-Ответ строго JSON: {"correct": true|false, "feedback": "одно короткое предложение по-русски: что не так или уточнение; пустая строка, если всё идеально"}`;
+const checkSystem = (lang: string) => `You check a student's answer in a vocabulary trainer. The student speaks ${lang}.
+Judge whether the word was translated correctly. Accept synonyms and close meanings, small typos, and other forms of the word. Accept a German noun without its article, but mention the article.
+Do not accept a word with a different meaning.
+Reply strictly with JSON: {"correct": true|false, "feedback": "one short sentence in ${lang}: what is wrong, or a clarification; an empty string if the answer is perfect"}`;
+
+// The name of the language the user picked in their profile.
+function userLanguage(value: unknown): string {
+  return (typeof value === "string" && value.trim().slice(0, 40)) || "English";
+}
 
 async function grok(messages: unknown[]): Promise<any> {
   const res = await fetch("https://api.x.ai/v1/chat/completions", {
@@ -91,21 +96,21 @@ Deno.serve(async (req) => {
     const body = await req.json();
 
     if (body.action === "analyze") {
-      const hint = body.studyLanguage ? `Изучаемый язык: ${body.studyLanguage}.` : "Изучаемый язык не указан.";
+      const hint = body.studyLanguage ? `Study language: ${body.studyLanguage}.` : "Study language not specified.";
       let user: unknown;
       if (typeof body.image === "string" && body.image.startsWith("data:image/")) {
         if (body.image.length > 8_000_000) return reply({ error: "image too large" }, 413);
         user = [
           { type: "image_url", image_url: { url: body.image, detail: "high" } },
-          { type: "text", text: `${hint} Найди на фото иностранное слово (или слова) и составь карточки.` },
+          { type: "text", text: `${hint} Find the foreign word (or words) in the photo and build cards.` },
         ];
       } else if (typeof body.text === "string" && body.text.trim()) {
-        user = `${hint}\nВход:\n${body.text.trim().slice(0, 2000)}`;
+        user = `${hint}\nInput:\n${body.text.trim().slice(0, 2000)}`;
       } else {
         return reply({ error: "text or image required" }, 400);
       }
       const result = await grok([
-        { role: "system", content: ANALYZE_SYSTEM },
+        { role: "system", content: analyzeSystem(userLanguage(body.userLanguage)) },
         { role: "user", content: user },
       ]);
       return reply({ items: Array.isArray(result.items) ? result.items : [], error: result.error ?? null });
@@ -114,11 +119,11 @@ Deno.serve(async (req) => {
     if (body.action === "check") {
       const { prompt, expected, answer, direction, language } = body;
       const task = direction === "to_ru"
-        ? `Слово (${language}): «${prompt}». Правильный перевод на русский: «${expected}».`
-        : `Русское слово: «${prompt}». Правильный ответ (${language}): «${expected}».`;
+        ? `Word (${language}): "${prompt}". Correct meaning: "${expected}".`
+        : `Given meaning: "${prompt}". Correct answer (${language}): "${expected}".`;
       const result = await grok([
-        { role: "system", content: CHECK_SYSTEM },
-        { role: "user", content: `${task}\nОтвет ученика: «${String(answer).slice(0, 200)}».` },
+        { role: "system", content: checkSystem(userLanguage(body.userLanguage)) },
+        { role: "user", content: `${task}\nStudent's answer: "${String(answer).slice(0, 200)}".` },
       ]);
       return reply({ correct: !!result.correct, feedback: result.feedback ?? "" });
     }

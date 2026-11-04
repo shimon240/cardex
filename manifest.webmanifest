@@ -1,13 +1,13 @@
 {
   "name": "Cardex",
   "short_name": "Cardex",
-  "description": "Карточки иностранных слов: создавай сам и учи.",
+  "description": "Flashcards for foreign words: create your own and learn them.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "background_color": "#fdfcfc",
   "theme_color": "#fdfcfc",
-  "lang": "ru",
+  "lang": "en",
   "icons": [
     { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
     { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
